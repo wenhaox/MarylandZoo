@@ -1,48 +1,78 @@
 import streamlit as st
 import random
+import json
 
-def shuffle(node_data):
-  for i in range(len(node_data)):
-    # generate a random index to swap with
-    rand_index = random.randint(0, len(node_data) - 1)
-    
-    temp = node_data[i]
-    node_data[i] = node_data[rand_index]
-    node_data[rand_index] = temp
-  return node_data
+def shuffle_node_data(node_data):
+    """
+    Shuffle the order of nodes.
+    """
+    random.shuffle(node_data)
+    return node_data
 
+# Streamlit UI
+st.header("🕒 Feed Time Scheduler ")
+st.divider()
 
-# get feed time from user
-feed_time = st.text_input("Enter the feed time (format: hh:mm am/pm):", "Time...")
+# Settings Section with Emoji
+st.subheader("⚙️ Settings ")
+# Get feed time from user using a text input
+feed_time = st.text_input("Enter feed time (HH : MM):", "13:00")
 
-# display user input
-if (feed_time != "Time..."):
-  st.write("Your feed time is ", feed_time)
+# Generate number of nodes using a dropdown selector
+num_nodes = st.selectbox("Select the number of nodes:", range(4, 8))
 
-# generate random number of nodes from 4 to 7
-num_nodes = st.number_input("Enter the number of nodes:", 4, 7, 4)
+# User choice for node order
+node_order_choice = st.radio("Choose the node order method:", ('Random', 'Custom'))
 
-# create data structure with num_nodes size
-node_data = [0] * num_nodes
+# Create node data
+node_data = list(range(1, num_nodes + 1))
+ball_node_choice = None
 
-for (i, node) in enumerate(node_data):
-  node_data[i] = i + 1
+if node_order_choice == 'Random':
+    shuffle_node_data(node_data)
+    ball_node_choice = random.choice(node_data)  # Random ball node when the order is random
+else:
+    # Allow user to enter custom node order
+    custom_order = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, node_data)))
+    try:
+        node_data = [int(i.strip()) for i in custom_order.split(',')]
+        if len(node_data) != num_nodes or not all(1 <= n <= num_nodes for n in node_data):
+            st.error("Please enter a valid node order.")
+            node_data = list(range(1, num_nodes + 1))
+    except ValueError:
+        st.error("Please enter a valid node order.")
+        node_data = list(range(1, num_nodes + 1))
+    ball_node_choice = st.selectbox("Select the ball node:", node_data)
 
-# based on num_nodes, randomly order the nodes in node_data
-# node_data = [1, 2, 3, 4, ...]
-# now, shuffle list
-shuffle(node_data)
+# Randomize button
+if st.button('Randomize Node Order and Ball Node'):
+    shuffle_node_data(node_data)
+    ball_node_choice = random.choice(node_data)
 
-# pick a random node to be the ball node
-ball_node = random.randint(0, len(node_data) - 1)
+# Divider
+st.divider()
 
-# display node_data
-st.write("Node order is: ", node_data)
+# Displaying Selections Section with Emoji
+st.subheader("📊 Selections ")
+# Display user input for time
+if feed_time != "13:00":
+    st.write("Your feed time is ", feed_time)
 
-# output text file with time, node order, and ball node
-# output file name: feed_time.txt
-if (feed_time != "Time..."):
-  file = open("feed_time.txt", "w")
-  file.write("You have selected to feed at " + feed_time + "\n")
-  file.write("Node order is " + str(node_data) + "\n")
-  file.write("Chosen ball node is " + str(ball_node) + "\n")
+# Display node data as a list of values
+st.write("Node order: ", ', '.join(map(str, node_data)))
+
+# Display the selected ball node
+if ball_node_choice is not None:
+    st.write("Chosen ball node is ", ball_node_choice)
+
+# Submit button to save data to a JSON file
+if st.button('Submit and Save Data'):
+    data_to_save = {
+        "feed_time": feed_time,
+        "node_order": node_data,
+        "ball_node": ball_node_choice
+    }
+    with open("feed_time.json", "w") as json_file:
+        json.dump(data_to_save, json_file, indent=4)
+    st.success("Data saved to feed_time.json")
+
