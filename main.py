@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import json
+import serial
 
 def shuffle_node_data(node_data):
     """
@@ -10,6 +11,7 @@ def shuffle_node_data(node_data):
     return node_data
 
 # Streamlit UI
+st.sidebar.image("logo.png", width=270)
 st.header("🕒 Feed Time Scheduler ")
 st.divider()
 
@@ -65,14 +67,18 @@ st.write("Node order: ", ', '.join(map(str, node_data)))
 if ball_node_choice is not None:
     st.write("Chosen ball node is ", ball_node_choice)
 
-# Submit button to save data to a JSON file
-if st.button('Submit and Save Data'):
-    data_to_save = {
+# Submit button to send data over serial port
+if st.button('Submit and Send Data'):
+    data_to_send = {
         "feed_time": feed_time,
         "node_order": node_data,
         "ball_node": ball_node_choice
     }
-    with open("feed_time.json", "w") as json_file:
-        json.dump(data_to_save, json_file, indent=4)
-    st.success("Data saved to feed_time.json")
-
+    # Serialize data to JSON (optional, depending on your needs)
+    json_data = json.dumps(data_to_send)
+    # Open serial port
+    ser = serial.Serial('/dev/tty.usbserial-140', 9600)  # Adjust the port and baud rate accordingly
+    # Send a specific command to trigger RF transmission
+    ser.write("SEND_RF\n".encode())  # Ensure to encode the string to bytes
+    ser.close()  # Close the serial port
+    st.success("Data sent over serial port")
