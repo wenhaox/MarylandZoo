@@ -17,13 +17,23 @@ void loop() {
   // Check if a command is received via RF
   if (mySwitch_rx.available()) {
     long receivedValue = mySwitch_rx.getReceivedValue();
+    //Serial.println(receivedValue);
     int command = receivedValue / 10; // Extract command prefix
-    int feederID = receivedValue % 100; // Extract feeder ID
+    int feederID = extractDigit(receivedValue, 0); // Extract feeder ID
+    //Serial.println(command);
+    //Serial.println(feederID);
     if (feederID == myFeederID) {
       if (command == 100) { // Activation command received
         Serial.println("Activation command received for this feeder.");
         // Perform the feeder's task here
-        
+    
+        // After completing the task, send a completion signal
+        sendCompletionSignal();
+      }
+      if (command == 101) { //ball node
+        Serial.println("Ball activation command received for this feeder.");
+        // Perform the feeder's task here
+        //Serial.println(command);
         // After completing the task, send a completion signal
         sendCompletionSignal();
       }
@@ -34,8 +44,12 @@ void loop() {
 
 void sendCompletionSignal() {
   long completionSignal = 2000 + myFeederID; // Prefix 200 + Feeder ID
-  Serial.println();
+  Serial.println(completionSignal);
   mySwitch_tx.send(completionSignal, 24); // Send completion signal
   Serial.println("Completion signal sent for this feeder.");
   delay(1000); // Short delay to avoid rapid signal sending
+}
+
+int extractDigit(int number, int digitPosition) {
+  return (number / int(pow(10, digitPosition))) % 10;
 }

@@ -21,8 +21,8 @@ def init_serial_connection():
             st.error(f"Failed to open serial port: {e}")
             st.session_state.ser = None  # Ensure 'ser' is set to None if opening fails
             
-def send_activation_command(feeder_id):
-    command_code = 100  # Activation
+def send_activation_command(feeder_id, is_ball_node):
+    command_code = 101 if is_ball_node else 100
     activation_command = str(command_code) + str(feeder_id)
     if st.session_state.ser:
         try:
@@ -31,8 +31,8 @@ def send_activation_command(feeder_id):
         except Exception as e:
             st.error(f"Failed to send activation command to feeder {feeder_id}: {e}")
 
-def wait_for_feedback(feeder_id):
-    feedback_code = 2000  # Finished
+def wait_for_feedback(feeder_id, is_ball_node):
+    feedback_code = 2000
     expected_feedback = str(feedback_code + feeder_id)
     feedback_received = False
     start_time = time.time()
@@ -47,7 +47,7 @@ def wait_for_feedback(feeder_id):
                 feedback_received = True
             else:
                 # Handle unexpected feedback echoing??????
-                # st.error(f"Unexpected feedback received: {incoming_data}")
+                st.error(f"Unexpected feedback received: {incoming_data}")
                 x=1
         time.sleep(0.1)  # Avoid busy waiting
     
