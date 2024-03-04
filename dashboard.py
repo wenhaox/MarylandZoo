@@ -2,6 +2,11 @@ import streamlit as st
 import random
 from helpers import *
 
+# UI setup
+st.sidebar.image("logo.png", width=270)
+st.header("🕒 Feed Time Scheduler")
+st.markdown("---")
+
 # Settings Section with Emoji
 st.subheader("⚙️ Settings")
 feed_time = st.text_input("Enter feed time (HH : MM):", "13:00")
