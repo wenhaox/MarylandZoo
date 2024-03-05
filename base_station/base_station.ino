@@ -16,7 +16,7 @@ void loop() {
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     long cmd = command.toInt();
-    mySwitch_tx.send(cmd, 24);  // Send command as RF signal
+    mySwitch_tx.send(cmd, 24); // Send command as RF signal
   }
   
   // Listen for feedback from feeders

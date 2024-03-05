@@ -15,7 +15,7 @@ def init_serial_connection():
         return  # Serial is already open, no action needed
     else:
         try:
-            st.session_state.ser = serial.Serial('/dev/tty.usbserial-1140', 9600)
+            st.session_state.ser = serial.Serial('/dev/tty.usbserial-140', 9600)
             # Optionally, you can add a success message or log here
         except serial.SerialException as e:
             st.error(f"Failed to open serial port: {e}")
@@ -27,9 +27,9 @@ def send_activation_command(feeder_id, is_ball_node):
     if st.session_state.ser:
         try:
             st.session_state.ser.write(activation_command.encode())
-            st.success(f"Activation command sent to feeder {feeder_id}")
+            st.sidebar.success(f"Activation command sent to feeder {feeder_id}")
         except Exception as e:
-            st.error(f"Failed to send activation command to feeder {feeder_id}: {e}")
+            st.sidebar.error(f"Failed to send activation command to feeder {feeder_id}: {e}")
 
 def wait_for_feedback(feeder_id, is_ball_node):
     feedback_code = 2000
@@ -43,13 +43,13 @@ def wait_for_feedback(feeder_id, is_ball_node):
             incoming_data = st.session_state.ser.readline().decode().strip()
             print(f"Received: {incoming_data}, Expected: {expected_feedback}")
             if incoming_data == expected_feedback:
-                st.success(f"Feedback received from feeder {feeder_id}")
+                st.sidebar.success(f"Feedback received from feeder {feeder_id}")
                 feedback_received = True
             else:
                 # Handle unexpected feedback echoing??????
-                st.error(f"Unexpected feedback received: {incoming_data}")
+                # st.error(f"Unexpected feedback received: {incoming_data}")
                 x=1
         time.sleep(0.1)  # Avoid busy waiting
     
     if not feedback_received:
-        st.error(f"Timeout waiting for feedback from feeder {feeder_id}")
+        st.sidebar.error(f"Timeout waiting for feedback from feeder {feeder_id}")

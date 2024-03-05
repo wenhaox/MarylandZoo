@@ -49,6 +49,6 @@ if st.button('Submit and Send Data'):
             is_ball_node = (feeder_id == ball_node_choice)
             send_activation_command(feeder_id, is_ball_node)
             wait_for_feedback(feeder_id, is_ball_node)
-        st.success("All feeders activated and feedback received.")
+        st.sidebar.success("All feeders activated and feedback received.")
     else:
-        st.error("Serial connection not initialized. Cannot send data.")
+        st.sidebar.error("Serial connection not initialized. Cannot send data.")
