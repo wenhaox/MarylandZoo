@@ -15,11 +15,14 @@ def init_serial_connection():
         return  # Serial is already open, no action needed
     else:
         try:
-            st.session_state.ser = serial.Serial('/dev/tty.usbserial-110', 9600)
-            # Optionally, you can add a success message or log here
+            st.session_state.ser = serial.Serial('/dev/tty.usbserial-140', 9600)
         except serial.SerialException as e:
             st.error(f"Failed to open serial port: {e}")
             st.session_state.ser = None  # Ensure 'ser' is set to None if opening fails
+    
+    # initialize timeout
+    if 'timeout_seconds' not in st.session_state:
+        st.session_state.timeout_seconds = 10
             
 def send_activation_command(feeder_id, is_ball_node):
     command_code = 101 if is_ball_node else 100
@@ -36,7 +39,7 @@ def wait_for_feedback(feeder_id, is_ball_node):
     expected_feedback = str(feedback_code + feeder_id)
     feedback_received = False
     start_time = time.time()
-    timeout_seconds = 10  # Set a timeout for feedback
+    timeout_seconds = st.session_state.timeout_seconds  # set a timeout for feedback
 
     while not feedback_received and (time.time() - start_time) < timeout_seconds:
         if st.session_state.ser.in_waiting > 0:
