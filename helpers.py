@@ -15,7 +15,7 @@ def init_serial_connection():
         return  # Serial is already open, no action needed
     else:
         try:
-            st.session_state.ser = serial.Serial('/dev/tty.usbserial-140', 9600)
+            st.session_state.ser = serial.Serial('/dev/tty.usbserial-110', 9600)
             # Optionally, you can add a success message or log here
         except serial.SerialException as e:
             st.error(f"Failed to open serial port: {e}")
