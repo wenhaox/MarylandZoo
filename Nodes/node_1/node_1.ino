@@ -1,4 +1,5 @@
 #include <RCSwitch.h>
+#include <math.h> // For pow function in extractDigit
 
 RCSwitch mySwitch_tx = RCSwitch();
 RCSwitch mySwitch_rx = RCSwitch();
@@ -6,6 +7,7 @@ RCSwitch mySwitch_rx = RCSwitch();
 const int transmitterPin = 10; // Pin connected to the RF transmitter
 const int receiverInterrupt = 0; // Interrupt connected to the RF receiver, pin 2 on most Arduinos
 const int myFeederID = 1; // Unique ID for this feeder
+long lastSeqNumReceived = 0; // To keep track of the last sequence number received
 
 void setup() {
   Serial.begin(9600);
@@ -14,33 +16,30 @@ void setup() {
 }
 
 void loop() {
-  // Check if a command is received via RF
   if (mySwitch_rx.available()) {
     long receivedValue = mySwitch_rx.getReceivedValue();
-    //Serial.println(receivedValue);
-    int command = receivedValue / 10; // Extract command prefix
-    int feederID = extractDigit(receivedValue, 0); // Extract feeder ID
-    //Serial.println(command);
-    //Serial.println(feederID);
-    if (feederID == myFeederID) {
-      if (command == 100) { // Activation command received
-        Serial.println("Activation command received for this feeder.");
-        // Perform the feeder's task here
+    long receivedSeqNum = receivedValue / 100000; // Extract the sequence number
+    long cmd = receivedValue % 100000; // Extract the command
     
-        // After completing the task, send a completion signal
-        sendCompletionSignal();
-      }
-      if (command == 101) { //ball node
-        Serial.println("Ball activation command received for this feeder.");
-        // Perform the feeder's task here
-        //Serial.println(command);
-        // After completing the task, send a completion signal
-        sendCompletionSignal();
-      }
+    if (receivedSeqNum <= lastSeqNumReceived) {
+      // Duplicate message, ignore it
+      Serial.println("Duplicate message received; ignoring.");
+    } else {
+      lastSeqNumReceived = receivedSeqNum; // Update with the new sequence number
+      // Process the command here
+      Serial.print("Command processed: ");
+      Serial.println(cmd);
+
+      // Send acknowledgment back
+      long ackSignal = receivedValue + 1000; // Just as an example, signal + 1000 as ACK
+      mySwitch_tx.send(ackSignal, 24);
+      Serial.println("ACK sent.");
     }
+    
     mySwitch_rx.resetAvailable();
   }
 }
+
 
 void sendCompletionSignal() {
   long completionSignal = 2000 + myFeederID; // Prefix 200 + Feeder ID
