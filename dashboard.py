@@ -2,20 +2,41 @@ import streamlit as st
 import random
 from helpers import *
 
+# Check if settings page is shown or not
+# if 'show_settings' not in st.session_state:
+#     st.session_state.show_settings = False
+
 # UI setup
 st.sidebar.image("logo.png", width=270)
 st.header("🕒 Feed Time Scheduler")
 st.markdown("---")
 
-# Settings Section with Emoji
-st.subheader("⚙️ Settings")
+# Button to toggle settings (keep button in top right)
+with st.expander("⚙️ Settings"):
+    st.subheader("Welcome to settings!")
+    st.caption("Here you can adjust the timeout for feedback and other parameters.")
+    
+    # set custom timeout
+    st.write("Set custom timeout for feedback (in seconds)")
+    timeout_seconds = st.text_input("Enter timeout in seconds:", "10")
+    st.divider()
+
+    # section 2
+    st.write("")
+
+    # save settings
+    if (st.button('Save', type="primary")):
+        st.session_state.timeout_seconds = timeout_seconds
+        st.success("Timeout saved!")
+
+# Determine Node Order
+st.subheader("⚙️ Determine Node Order")
 feed_time = st.text_input("Enter feed time (HH : MM):", "13:00")
 num_nodes = st.selectbox("Select the number of nodes:", range(2, 8))
 node_order_choice = st.radio("Choose the node order method:", ('Random', 'Custom'))
 
 # adjust timeout seconds
 # timeout_seconds = st.slider("Set timeout (in seconds) for feedback:", 1, 60, 10, 1)
-timeout_seconds = st.text_input("Enter timeout in seconds:", "10")
 
 # Create node data
 node_data = list(range(1, num_nodes + 1))
@@ -49,7 +70,7 @@ if st.button('Submit and Send Data'):
     else:
         st.sidebar.error("Serial connection not initialized. Cannot send data.")
 
-# Display selected settings
+# Display selected parameters
 st.markdown("---")
 st.subheader("📊 Selections")
 st.write("Your feed time is:", feed_time)

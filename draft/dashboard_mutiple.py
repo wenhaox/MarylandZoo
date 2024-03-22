@@ -106,11 +106,36 @@ if st.button('Schedule New Feeding'):
   except ValueError:
     st.error("Please enter a valid time in HH:MM format.")
 
+
+
+def display_scheduled_feedings():
+  if st.session_state.__scheduled_feedings:
+    for feed_time, data in st.session_state.__scheduled_feedings.items():
+      st.write(f"Feeding time: {feed_time}; Data: {json.dumps(data)}")
+  else:
+    st.info("No scheduled feedings yet.")
+
+
 # Display scheduled feedings
+st.divider()
 st.markdown("---")
 st.subheader("📅 Scheduled Feedings")
 if st.session_state.__scheduled_feedings:
-  for feed_time, data in st.session_state.__scheduled_feedings.items():
-    st.write(f"Feeding time: {feed_time}; Data: {json.dumps(data)}")
+    deleted_feedings = []
+
+    # Generate checkboxes for each scheduled feeding
+    for feed_time, data in st.session_state.__scheduled_feedings.items():
+        if st.checkbox(f"Feeding time: {feed_time}; Data: {json.dumps(data)}", key=feed_time):
+            deleted_feedings.append(feed_time)
+
+    if deleted_feedings:
+        if st.button("Delete Selected Feedings"):
+            for feed_time in deleted_feedings:
+                del st.session_state.__scheduled_feedings[feed_time]
+            st.success("Selected feedings have been deleted!")
+            # Display updated list of feedings
+            display_scheduled_feedings()
+    else:
+        st.info("Select the checkbox next to a feeding to delete it.")
 else:
-  st.info("No scheduled feedings yet.")
+    st.info("No scheduled feedings yet.")
