@@ -11,11 +11,13 @@ void setup() {
 }
 
 void loop() {
+  mySwitch_rx.resetAvailable();
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     long cmd = command.toInt();
     lastSeqNum++; // Increment sequence number for each new command
     long fullCmd = lastSeqNum * 100000 + cmd; // Combine sequence number and command
+    long desiredResponse = 2000 + (cmd % 10);
 
     bool ackReceived = false;
     unsigned long startTime = millis();
@@ -24,15 +26,12 @@ void loop() {
       delay(500); // Wait for a bit before checking for acknowledgment
       if (mySwitch_rx.available()) {
         long feedback = mySwitch_rx.getReceivedValue();
-        if (feedback == (fullCmd + 1000)) { // Assuming ACK is command + 1000
+          // Send feedback to dashboard
+        if (feedback == desiredResponse) {
           ackReceived = true;
-          Serial.println("ACK received");
+          Serial.println(String(desiredResponse));
         }
-        mySwitch_rx.resetAvailable();
       }
-    }
-    if (!ackReceived) {
-      Serial.println("ACK not received, check receiver.");
     }
   }
 }

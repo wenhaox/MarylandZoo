@@ -31,9 +31,7 @@ void loop() {
       Serial.println(cmd);
 
       // Send acknowledgment back
-      long ackSignal = receivedValue + 1000; // Just as an example, signal + 1000 as ACK
-      mySwitch_tx.send(ackSignal, 24);
-      Serial.println("ACK sent.");
+      sendCompletionSignal();
     }
     
     mySwitch_rx.resetAvailable();

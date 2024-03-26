@@ -15,7 +15,7 @@ def init_serial_connection():
         return  # Serial is already open, no action needed
     else:
         try:
-            st.session_state.ser = serial.Serial('/dev/tty.usbserial-140', 9600)
+            st.session_state.ser = serial.Serial('/dev/tty.usbserial-210', 9600)
         except serial.SerialException as e:
             st.error(f"Failed to open serial port: {e}")
             st.session_state.ser = None  # Ensure 'ser' is set to None if opening fails
@@ -34,13 +34,16 @@ def send_activation_command(feeder_id, is_ball_node):
         except Exception as e:
             st.sidebar.error(f"Failed to send activation command to feeder {feeder_id}: {e}")
 
+
+    
 def wait_for_feedback(feeder_id, is_ball_node):
     feedback_code = 2000
     expected_feedback = str(feedback_code + feeder_id)
     feedback_received = False
     start_time = time.time()
-    timeout_seconds = st.session_state.timeout_seconds  # set a timeout for feedback
-
+    # Ensure timeout_seconds is treated as an integer or float
+    timeout_seconds = int(st.session_state.timeout_seconds)  # or use float() if you expect decimal values
+    
     while not feedback_received and (time.time() - start_time) < timeout_seconds:
         if st.session_state.ser.in_waiting > 0:
             incoming_data = st.session_state.ser.readline().decode().strip()
@@ -49,9 +52,9 @@ def wait_for_feedback(feeder_id, is_ball_node):
                 st.sidebar.success(f"Feedback received from feeder {feeder_id}")
                 feedback_received = True
             else:
-                # Handle unexpected feedback echoing??????
+                # Handle unexpected feedback if necessary
                 # st.error(f"Unexpected feedback received: {incoming_data}")
-                x=1
+                pass  # Adjust as needed
         time.sleep(0.1)  # Avoid busy waiting
     
     if not feedback_received:
