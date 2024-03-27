@@ -21,7 +21,6 @@ void loop() {
     bool ackReceived = false;
     unsigned long startTime = millis();
     while (!ackReceived && (millis() - startTime) < 10000) { // 10-second timeout
-     Serial.println("Inside");
       mySwitch_tx.send(fullCmd, 24); // Send combined sequence number and command as RF signal
       delay(500); // Wait for a bit before checking for acknowledgment
       if (mySwitch_rx.available()) {
