@@ -7,11 +7,10 @@ unsigned long lastSeqNum = 0; // Sequence number for messages
 void setup() {
   Serial.begin(9600);
   mySwitch_tx.enableTransmit(10); // Transmitter on Pin 10
-  mySwitch_rx.enableReceive(0); // Receiver on interrupt 0 => Pin 2
+  mySwitch_rx.enableReceive(0); // Receiver on interrupt 0 => Pin 3
 }
 
 void loop() {
-  mySwitch_rx.resetAvailable();
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     long cmd = command.toInt();
@@ -22,6 +21,7 @@ void loop() {
     bool ackReceived = false;
     unsigned long startTime = millis();
     while (!ackReceived && (millis() - startTime) < 10000) { // 10-second timeout
+     Serial.println("Inside");
       mySwitch_tx.send(fullCmd, 24); // Send combined sequence number and command as RF signal
       delay(500); // Wait for a bit before checking for acknowledgment
       if (mySwitch_rx.available()) {
@@ -33,5 +33,6 @@ void loop() {
         }
       }
     }
+    mySwitch_rx.resetAvailable();
   }
 }

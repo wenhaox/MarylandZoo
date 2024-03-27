@@ -5,7 +5,7 @@ RCSwitch mySwitch_tx = RCSwitch();
 RCSwitch mySwitch_rx = RCSwitch();
 
 const int transmitterPin = 10; // Pin connected to the RF transmitter
-const int receiverInterrupt = 0; // Interrupt connected to the RF receiver, pin 2 on most Arduinos
+const int receiverInterrupt = 0; // Interrupt connected to the RF receiver, pin 3 on most Arduinos
 const int myFeederID = 2; // Unique ID for this feeder
 long lastSeqNumReceived = 0; // To keep track of the last sequence number received
 
@@ -17,6 +17,7 @@ void setup() {
 
 void loop() {
   if (mySwitch_rx.available()) {
+    Serial.println("Inside");
     long receivedValue = mySwitch_rx.getReceivedValue();
     long receivedSeqNum = receivedValue / 100000; // Extract the sequence number
     long cmd = receivedValue % 100000; // Extract the command
@@ -31,9 +32,7 @@ void loop() {
       Serial.println(cmd);
 
       // Send acknowledgment back
-      long ackSignal = receivedValue + 1000; // Just as an example, signal + 1000 as ACK
-      mySwitch_tx.send(ackSignal, 24);
-      Serial.println("ACK sent.");
+      sendCompletionSignal();
     }
     
     mySwitch_rx.resetAvailable();
