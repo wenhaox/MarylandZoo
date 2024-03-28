@@ -119,22 +119,48 @@ def process_custom_order(custom_order, num_nodes):
         st.error("Please enter numbers only in the node order.")
         return list(range(1, num_nodes + 1)), None
 
+
 def submit_and_schedule_feeding(node_data, ball_node_choice):
+    # Display current feed configuration
     display_info(node_data, ball_node_choice)
-    if st.button('Submit and Send Data'):
-        init_serial_connection()
-        # Only proceed if st.session_state.ser is a Serial object and the port is open
-        if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
-            try:
-                for feeder_id in node_data:
-                    is_ball_node = (feeder_id == ball_node_choice)
-                    send_activation_command(feeder_id, is_ball_node)
-                    wait_for_feedback(feeder_id, is_ball_node)
-                st.sidebar.success("All feeders activated and feedback received.")
-            except Exception as e:
-                st.sidebar.error(f"Failed to activate feeders: {e}")
-        else:
-            st.sidebar.error("Serial connection not initialized. Cannot send data.")
+    
+    # Button to save the scheduled feed time
+    if st.button('Schedule Feed Time'):
+        # Save the scheduled feed time
+        st.session_state.feed_status = "Scheduled"
+        st.sidebar.success("Feed time scheduled.")
+    
+    # Continuously check if it's time to feed based on the saved feed time
+    if 'feed_status' in st.session_state and st.session_state.feed_status == "Scheduled":
+        current_time = datetime.datetime.now().time()
+        scheduled_time = st.session_state.feed_time  # Assuming this is set to a datetime.time object elsewhere
+        
+        # If current time is past the scheduled time and feed has not been completed
+        if current_time >= scheduled_time and st.session_state.feed_status != "Completed":
+            st.session_state.feed_status = "In Progress"
+            init_serial_connection()
+            
+            # Check if serial connection is properly initialized
+            if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
+                try:
+                    # Iterate through each node to send activation command and wait for feedback
+                    for feeder_id in node_data:
+                        is_ball_node = (feeder_id == ball_node_choice)
+                        send_activation_command(feeder_id, is_ball_node)
+                        wait_for_feedback(feeder_id, is_ball_node)
+                    st.sidebar.success("All feeders activated and feedback received.")
+                    st.session_state.feed_status = "Completed"
+                except Exception as e:
+                    st.sidebar.error(f"Failed to activate feeders: {e}")
+                    st.session_state.feed_status = "Failed"
+            else:
+                st.sidebar.error("Serial connection not initialized. Cannot send data.")
+                st.session_state.feed_status = "Failed"
+        elif st.session_state.feed_status != "Completed":
+            # If it's not yet time, display a waiting message and plan to check again
+            st.sidebar.info("Waiting for the scheduled feed time: " + scheduled_time.strftime('%H:%M'))
+            time.sleep(1)  # Adjust sleep time as needed for performance
+            st.rerun()
 
 
 def display_info(node_data, ball_node_choice):
