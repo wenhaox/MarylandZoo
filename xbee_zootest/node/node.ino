@@ -1,10 +1,10 @@
-#include <SoftwareSerial.h>
+#include <NeoSWSerial.h>
 
 // Pins for SoftwareSerial
 const int rxPin = 2; // Connect to the TX pin of the RF module
 const int txPin = 3; // Connect to the RX pin of the RF module
 
-SoftwareSerial XBee(rxPin, txPin); // RX, TX
+NeoSWSerial XBee(rxPin, txPin); // RX, TX
 
 const int myFeederID = 1; // Unique ID for this feeder
 
@@ -32,6 +32,7 @@ void loop() {
       if (command == 101) { // Ball node
         Serial.println("Ball activation command received for this feeder.");
         // Perform the feeder's task here
+
         // After completing the task, send a completion signal
         sendCompletionSignal();
       }
