@@ -97,7 +97,7 @@ void loop() {
         // After completing the task, send a completion signal
         sendCompletionSignal();
       }
-      if (command == 201) { // Ball node
+      if (command == 201) { // Autonomous node
         Serial.println("Autonomous command received for this feeder.");
         // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
         while (false_pos_counter < 15 && (millis() - start_timeout < timeout)) {
