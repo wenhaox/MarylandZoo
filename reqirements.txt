@@ -6,5 +6,4 @@ time
 numpy
 pandas
 plotly
-plotly.express
 json
