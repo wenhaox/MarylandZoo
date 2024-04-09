@@ -1,3 +1,9 @@
+streamlit
 random
-serial
+pySerial
+datetime
 time
+numpy
+pandas
+plotly.express
+json
