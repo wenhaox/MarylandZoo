@@ -83,16 +83,16 @@ void loop() {
       if (command == 100) { // Activation command received
         Serial.println("Activation command received for this feeder.");
         // Perform the feeder's task here
-        myDFPlayer.play(1);
-        delay(1000);
+        myDFPlayer.play(2);
+        delay(2000);
         // After completing the task, send a completion signal
         sendCompletionSignal();
       }
       if (command == 101) { // Ball node
         Serial.println("Ball activation command received for this feeder.");
         // Perform the feeder's task here
-        myDFPlayer.play(1);
-        delay(1000);
+        myDFPlayer.play(2);
+        delay(2000);
         BallRelease();
         // After completing the task, send a completion signal
         sendCompletionSignal();
@@ -102,7 +102,7 @@ void loop() {
         // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
         while (false_pos_counter < 15 && (millis() - start_timeout < timeout)) {
           if ((((millis() - start_timeout)/1000) % audio_timer) == 0){
-              PlayAudio(sound);
+              PlayAudio(2);
             }
           distance = Detect();
           if(distance < success_distance){
