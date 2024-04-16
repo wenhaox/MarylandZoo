@@ -1,13 +1,11 @@
-#include <RCSwitch.h>
+#include <SoftwareSerial.h>
 
-RCSwitch mySwitch_tx = RCSwitch();
-RCSwitch mySwitch_rx = RCSwitch();
+SoftwareSerial XBee(2, 3); // RX, TX on Arduino Uno
 unsigned long lastSeqNum = 0; // Sequence number for messages
 
 void setup() {
   Serial.begin(9600);
-  mySwitch_tx.enableTransmit(10); // Transmitter on Pin 10
-  mySwitch_rx.enableReceive(0); // Receiver on interrupt 0 => Pin 3
+  XBee.begin(9600); // Set up XBee communication at 9600 baud
 }
 
 void loop() {
@@ -21,17 +19,16 @@ void loop() {
     bool ackReceived = false;
     unsigned long startTime = millis();
     while (!ackReceived && (millis() - startTime) < 10000) { // 10-second timeout
-      mySwitch_tx.send(fullCmd, 24); // Send combined sequence number and command as RF signal
+      XBee.println(fullCmd); // Send combined sequence number and command via XBee
       delay(500); // Wait for a bit before checking for acknowledgment
-      if (mySwitch_rx.available()) {
-        long feedback = mySwitch_rx.getReceivedValue();
-          // Send feedback to dashboard
+      while (XBee.available()) {
+        String feedbackStr = XBee.readStringUntil('\n');
+        long feedback = feedbackStr.toInt();
         if (feedback == desiredResponse) {
           ackReceived = true;
           Serial.println(String(desiredResponse));
         }
       }
     }
-    mySwitch_rx.resetAvailable();
   }
 }

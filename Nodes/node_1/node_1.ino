@@ -1,24 +1,20 @@
-#include <RCSwitch.h>
+#include <SoftwareSerial.h>
 #include <math.h> // For pow function in extractDigit
 
-RCSwitch mySwitch_tx = RCSwitch();
-RCSwitch mySwitch_rx = RCSwitch();
+SoftwareSerial XBee(2, 3); // RX, TX on Arduino Uno
 
-const int transmitterPin = 10; // Pin connected to the RF transmitter
-const int receiverInterrupt = 0; // Interrupt connected to the RF receiver, pin 3 on most Arduinos
 const int myFeederID = 1; // Unique ID for this feeder
 long lastSeqNumReceived = 0; // To keep track of the last sequence number received
 
 void setup() {
   Serial.begin(9600);
-  mySwitch_tx.enableTransmit(transmitterPin);
-  mySwitch_rx.enableReceive(receiverInterrupt); // Receiver on interrupt 0 => that is pin #2
+  XBee.begin(9600); // Initialize XBee communication at 9600 baud
 }
 
 void loop() {
-  if (mySwitch_rx.available()) {
-    Serial.println("Inside");
-    long receivedValue = mySwitch_rx.getReceivedValue();
+  if (XBee.available()) {
+    String receivedMsg = XBee.readStringUntil('\n');
+    long receivedValue = receivedMsg.toInt();
     long receivedSeqNum = receivedValue / 100000; // Extract the sequence number
     long cmd = receivedValue % 100000; // Extract the command
     
@@ -34,16 +30,13 @@ void loop() {
       // Send acknowledgment back
       sendCompletionSignal();
     }
-    
-    mySwitch_rx.resetAvailable();
   }
 }
 
-
 void sendCompletionSignal() {
-  long completionSignal = 2000 + myFeederID; // Prefix 200 + Feeder ID
+  long completionSignal = 2000 + myFeederID; // Prefix 2000 + Feeder ID
   Serial.println(completionSignal);
-  mySwitch_tx.send(completionSignal, 24); // Send completion signal
+  XBee.println(completionSignal); // Send completion signal via XBee
   Serial.println("Completion signal sent for this feeder.");
   delay(1000); // Short delay to avoid rapid signal sending
 }
