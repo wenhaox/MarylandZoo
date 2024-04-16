@@ -118,15 +118,14 @@ def configure_node_data(num_nodes, iterations, node_order_choice):
     sequence = []
 
     if node_order_choice == 'Random':
+        # assuming no iterations
         # node_data, ball_node_choice = process_random_order(node_data)
         
-        # get ball node from user
+        # assuming with iterations
         ball_node_choice = st.selectbox("Select the node that will have the ball:", list(range(1, num_nodes + 1)), key="random_ball_node")
-
         # create sequence, shuffle data
         sequence = create_node_sequence(initial_node_data, iterations, num_nodes)
         shuffle_node_data(sequence)
-
         # make sure ball node is the last node
         if ball_node_choice in sequence:
             sequence.remove(ball_node_choice)
@@ -134,7 +133,8 @@ def configure_node_data(num_nodes, iterations, node_order_choice):
             
     else:
         custom_order = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, initial_node_data)))
-        # node_data, ball_node_choice = process_custom_order(custom_order, num_nodes)
+        # assuming no iterations
+        node_data, ball_node_choice = process_custom_order(custom_order, num_nodes)
         ball_node_choice = st.selectbox("Select the node that will have the ball:", list(range(1, num_nodes + 1)), key="custom_ball_node")
         
         # parse user input and validate
