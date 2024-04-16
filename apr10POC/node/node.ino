@@ -4,17 +4,19 @@ const int actuator_pos_pin = 6;
 const int actuator_neg_pin = 5;
 const int ultrasonic_relay_pin = 8;
 
+// 
 int success_distance = 200;
 unsigned long timeout = 180000;
 unsigned long start_timeout; 
 unsigned long completion_time;
+
 // Initializes variables used in detection function
 unsigned char data[4] = {};
 float distance;
 
-int mp3volume = 20;          // volume of audio played from speaker. Must be between 0-30 (Default is 20)
+int mp3volume = 20;   // volume of audio played from speaker. Must be between 0-30 (Default is 20)
 int audio_loop = 10;  // Number of times audio sound is played while node is active (default is 10 times)
-int sound = 1;  // Determines which audio file is played from SD card -- corresponds to order of library on sd card (default is first file; currently gopher scream)
+int sound = 1;        // Determines which audio file is played from SD card -- corresponds to order of library on sd card (default is first file; currently gopher scream)
 int audio_timer;
 int false_pos_counter;
 
@@ -26,6 +28,7 @@ bool success;  // Bool used to determine success or failure in node
 
 const int myFeederID = 1; // Unique ID for this feeder
 
+// Initialize audio player object
 DFRobotDFPlayerMini myDFPlayer;
 
 void setup() {
@@ -37,8 +40,8 @@ void setup() {
   pinMode(ultrasonic_relay_pin, OUTPUT);
   digitalWrite(ultrasonic_relay_pin, LOW);
 
-  //Initialize mp3 module
-  if (!myDFPlayer.begin(mp3_serial)) {  //Use softwareSerial to communicate with mp3.
+  // Initialize mp3 module
+  if (!myDFPlayer.begin(mp3_serial)) {  // Use softwareSerial to communicate with mp3.
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
     Serial.println(F("2.Please insert the SD card!"));
@@ -114,7 +117,7 @@ void loop() {
           Serial.println(distance / 10);
         }
         // Determines if bobcat was successful; above while loop breaks if bobcat is detected or node times out.
-        // If statement verifies node did not timeout (which means bobcat was successful)
+        // If statement verifies that the node did not timeout (which means bobcat was successful)
         if (millis() - start_timeout < timeout) {
           success = true;
           completion_time = (millis() - start_timeout); // 1000;  // Measures time to complete (in seconds) (DELETE/CHANGE IF IMPLEMENT RTC MODULE)
@@ -128,17 +131,19 @@ void loop() {
         Serial.print(" Completion Time: ");
         Serial.println(completion_time);
         delay(1000);
+
         // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
         if (success) {
           BallRelease();
         }
         digitalWrite(ultrasonic_relay_pin, LOW);
-        sendCompletionSignal();
+        sendCompletionSignal(); // send time back to base station
       }
     }
   }
 }
 
+// Function sendCompletionSignal: Sends completion signal to base station to indicate that the node has completed its task
 void sendCompletionSignal() {
   long completionSignal = 2000 + myFeederID; // Prefix 200 + Feeder ID
   String message = String(completionSignal) + "\n"; // Ensure to end with newline for readStringUntil()
@@ -151,6 +156,7 @@ void sendCompletionSignal() {
 int extractDigit(long number, int digitPosition) {
   return (number / long(pow(10, digitPosition))) % 10;
 }
+
 
 // Function BallRelease: Lowers linear actuator to release the ball and then raises it back up to original position ready to be loaded again.
 void BallRelease() {
