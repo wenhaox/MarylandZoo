@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
 #include <math.h> // For pow function in extractDigit
 
-SoftwareSerial XBee(2, 3); // RX, TX on Arduino Uno
+#define XBee Serial3
 
 const int myFeederID = 1; // Unique ID for this feeder
 long lastSeqNumReceived = 0; // To keep track of the last sequence number received

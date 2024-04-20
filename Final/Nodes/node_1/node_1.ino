@@ -1,3 +1,5 @@
+#include <SoftwareSerial.h>
+#include <math.h> // For pow function in extractDigit
 #include <DFRobotDFPlayerMini.h>
 
 const int actuator_pos_pin = 6;
@@ -24,18 +26,17 @@ bool success;  // Bool used to determine success or failure in node
 
 #define mp3_serial Serial1
 #define ultrasonic_serial Serial2
-#define xbee_serial Serial3
+#define XBee Serial3
 
-const int myFeederID = 1; // Unique ID for this feeder
-
-// Initialize audio player object
 DFRobotDFPlayerMini myDFPlayer;
+const int myFeederID = 1; // Unique ID for this feeder
+long lastSeqNumReceived = 0; // To keep track of the last sequence number received
 
 void setup() {
-  Serial.begin(9600);  // Creates serial
+  Serial.begin(9600);
   mp3_serial.begin(9600);
   ultrasonic_serial.begin(9600);
-  xbee_serial.begin(9600);
+  XBee.begin(9600); // Initialize XBee communication at 9600 baud
 
   pinMode(ultrasonic_relay_pin, OUTPUT);
   digitalWrite(ultrasonic_relay_pin, LOW);
@@ -75,38 +76,22 @@ void loop() {
   start_timeout = millis();
   PlayAudio(sound);
 
-  if (xbee_serial.available()) {
-    Serial.println("Done");
-    String receivedMessage = xbee_serial.readStringUntil('\n');
-    long receivedValue = receivedMessage.toInt();
-    int command = receivedValue / 10; // Extract command prefix
-    int feederID = extractDigit(receivedValue, 0); // Extract feeder ID
+
+  if (XBee.available()) {
+    String receivedMsg = XBee.readStringUntil('\n');
+    Serial.println(receivedMsg);
+    long receivedValue = receivedMsg.toInt();
+    long cmd = receivedValue/10;
+    long feederID = receivedValue % 10; // Extract id
 
     if (feederID == myFeederID) {
-      if (command == 100) { // Activation command received
-        Serial.println("Activation command received for this feeder.");
-        // Perform the feeder's task here
-        myDFPlayer.play(2);
-        delay(2000);
-        // After completing the task, send a completion signal
-        sendCompletionSignal();
-      }
-      if (command == 101) { // Ball node
-        Serial.println("Ball activation command received for this feeder.");
-        // Perform the feeder's task here
-        myDFPlayer.play(2);
-        delay(2000);
-        BallRelease();
-        // After completing the task, send a completion signal
-        sendCompletionSignal();
-      }
-      if (command == 101) { // Autonomous node
+      if (cmd == 100 || cmd == 101) { // Feed
         Serial.println("Autonomous command received for this feeder.");
         // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
         while (false_pos_counter < 15 && (millis() - start_timeout < timeout)) {
           if ((((millis() - start_timeout)/1000) % audio_timer) == 0){
               PlayAudio(2);
-            }
+          }
           distance = Detect();
           if(distance < success_distance){
             false_pos_counter++; // Increment false positives by 1
@@ -134,29 +119,30 @@ void loop() {
 
         // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
         if (success) {
+          sendCompletionSignal();
           BallRelease();
+           // send time back to base station
         }
         digitalWrite(ultrasonic_relay_pin, LOW);
-        sendCompletionSignal(); // send time back to base station
       }
+      Serial.print("Command processed: ");
+      Serial.println(cmd);
     }
   }
 }
 
-// Function sendCompletionSignal: Sends completion signal to base station to indicate that the node has completed its task
 void sendCompletionSignal() {
-  long completionSignal = 2000 + myFeederID; // Prefix 200 + Feeder ID
-  String message = String(completionSignal) + "\n"; // Ensure to end with newline for readStringUntil()
+  long completionSignal = 2000 + myFeederID; // Prefix 2000 + Feeder ID
   Serial.println(completionSignal);
-  xbee_serial.print(message); // Send completion signal over RF
+  XBee.println(completionSignal); // Send completion signal via XBee
   Serial.println("Completion signal sent for this feeder.");
   delay(1000); // Short delay to avoid rapid signal sending
 }
 
-int extractDigit(long number, int digitPosition) {
-  return (number / long(pow(10, digitPosition))) % 10;
+int extractLastFourExcludingLast(int number) {
+    number = abs(number / 10); // Remove the last digit and handle negative numbers
+    return number % 1000;    // Get the next four digits
 }
-
 
 // Function BallRelease: Lowers linear actuator to release the ball and then raises it back up to original position ready to be loaded again.
 void BallRelease() {
@@ -210,5 +196,3 @@ float Detect() {
     }
   }
 }
-
-

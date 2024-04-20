@@ -1,8 +1,8 @@
 import streamlit as st
-import random
+
 import serial
 import time
-
+import random
 # Function to shuffle node data
 def shuffle_node_data(node_data):
     random.shuffle(node_data)
