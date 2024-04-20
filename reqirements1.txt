@@ -1,9 +1,0 @@
-streamlit
-random
-pySerial
-datetime
-time
-numpy
-pandas
-plotly
-json
