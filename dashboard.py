@@ -104,9 +104,15 @@ def feed_time_and_node_configuration():
     feed_time = st.time_input("Select feed time:", st.session_state.feed_time)
     st.session_state.feed_time = feed_time
     num_nodes = st.slider("Select the number of nodes:", min_value=2, max_value=4, value=2)
-    iterations = st.number_input("Select the number of iterations:", min_value=1, value=15, step=1)
     node_order_choice = st.radio("Choose the node order method:", ('Random', 'Custom'))
+    
+    if node_order_choice == 'Random':
+        iterations = st.number_input("Select the number of iterations:", min_value=1, value=15, step=1)
+    else:
+        iterations = None  # Not applicable for custom order
+    
     return num_nodes, iterations, node_order_choice
+
 
 # Function to configure data based on the selected node order method (Random or Custom)
 def configure_node_data(num_nodes, iterations, node_order_choice):
@@ -276,4 +282,3 @@ configure_advanced_settings()
 num_nodes, iterations, node_order_choice = feed_time_and_node_configuration()
 node_data, ball_node_choice = configure_node_data(num_nodes, iterations, node_order_choice)
 submit_and_schedule_feeding(node_data, ball_node_choice)
-#display_node_activation_stats(node_data)
