@@ -8,19 +8,18 @@ const int ultrasonic_relay_pin = 8;
 
 // 
 int success_distance = 200;
-unsigned long timeout = 180000;
-unsigned long start_timeout; 
-unsigned long completion_time;
+unsigned long start_time; 
 
 // Initializes variables used in detection function
 unsigned char data[4] = {};
 float distance;
 
 int mp3volume = 20;   // volume of audio played from speaker. Must be between 0-30 (Default is 20)
-int audio_loop = 10;  // Number of times audio sound is played while node is active (default is 10 times)
+int audio_loop = 3;  // Number of times audio sound is played while node is active (default is 10 times)
 int sound = 1;        // Determines which audio file is played from SD card -- corresponds to order of library on sd card (default is first file; currently gopher scream)
 int audio_timer;
 int false_pos_counter;
+long completion_time;
 
 bool success;  // Bool used to determine success or failure in node
 
@@ -29,7 +28,7 @@ bool success;  // Bool used to determine success or failure in node
 #define XBee Serial3
 
 DFRobotDFPlayerMini myDFPlayer;
-const int myFeederID = 1; // Unique ID for this feeder
+const int myFeederID = 2; // Unique ID for this feeder
 long lastSeqNumReceived = 0; // To keep track of the last sequence number received
 
 void setup() {
@@ -70,78 +69,89 @@ void loop() {
   // Initialize loop variables for first iteration (Should only repeat once per node activation)
   false_pos_counter = 0;
   success = false;
-  completion_time = timeout / 1000;
-  audio_timer = (timeout/1000) / audio_loop;
-  digitalWrite(ultrasonic_relay_pin, HIGH);
-  start_timeout = millis();
-  PlayAudio(sound);
 
+  digitalWrite(ultrasonic_relay_pin, HIGH);
+  start_time = millis();
+  PlayAudio(sound);
 
   if (XBee.available()) {
     String receivedMsg = XBee.readStringUntil('\n');
     Serial.println(receivedMsg);
-    long receivedValue = receivedMsg.toInt();
-    long cmd = receivedValue/10;
-    long feederID = receivedValue % 10; // Extract id
 
-    if (feederID == myFeederID) {
-      if (cmd == 100 || cmd == 101) { // Feed
-        Serial.println("Autonomous command received for this feeder.");
-        // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
-        while (false_pos_counter < 15 && (millis() - start_timeout < timeout)) {
-          if ((((millis() - start_timeout)/1000) % audio_timer) == 0){
+    // Assuming command format is [command_code][timeout][feeder_id]
+    if (receivedMsg.length() >= 7) {
+      long cmd = receivedMsg.substring(0, 3).toInt();
+      long receivedTimeout = receivedMsg.substring(3, 6).toInt() * 1000; // convert to milliseconds
+      int feederID = receivedMsg.substring(6, 7).toInt();
+      Serial.println(receivedMsg);
+      audio_timer = (receivedTimeout / 1000) / audio_loop;
+
+      if (feederID == myFeederID) {
+        if (cmd == 100 || cmd == 101) { // Feed
+          Serial.println("Autonomous command received for this feeder.");
+          // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
+          while ((millis() - start_time < receivedTimeout)) {
+            if ((((millis() - start_time) / 1000) % audio_timer) == 0) {
               PlayAudio(2);
+            }
+            distance = Detect();
+            if (distance < success_distance) {
+              false_pos_counter++; // Increment false positives by 1
+              if (false_pos_counter >= 15) { // If the object has been consistently detected
+                success = true; // Set success to true
+                completion_time = millis() - start_time; // Capture the time of success
+                break; // Break out of the loop
+              }
+            } else {
+              false_pos_counter = 0;
+            }
+            Serial.print("Distance: ");
+            Serial.println(distance / 10);
           }
-          distance = Detect();
-          if(distance < success_distance){
-            false_pos_counter++; // Increment false positives by 1
-          } else {
-            false_pos_counter = 0;
-          }
-          Serial.print("Distance: ");
+          // Determines if bobcat was successful; above while loop breaks if bobcat is detected or node times out.
+          // If statement verifies that the node did not timeout (which means bobcat was successful)
+          Serial.print("Pos Counter: ");
+          Serial.print(false_pos_counter);
+          Serial.print(" Distance: ");
           Serial.println(distance / 10);
-        }
-        // Determines if bobcat was successful; above while loop breaks if bobcat is detected or node times out.
-        // If statement verifies that the node did not timeout (which means bobcat was successful)
-        if (millis() - start_timeout < timeout) {
-          success = true;
-          completion_time = (millis() - start_timeout); // 1000;  // Measures time to complete (in seconds) (DELETE/CHANGE IF IMPLEMENT RTC MODULE)
-        }
-        Serial.print("Pos Counter: ");
-        Serial.print(false_pos_counter);
-        Serial.print(" Distance: ");
-        Serial.print(distance / 10);
-        Serial.print(" Timeout Time: ");
-        Serial.print(timeout);
-        Serial.print(" Completion Time: ");
-        Serial.println(completion_time);
-        delay(1000);
+          delay(1000);
 
-        // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
-        if (success) {
-          sendCompletionSignal();
-          BallRelease();
-           // send time back to base station
+          // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
+          if (success) {
+            sendCompletionSignal(completion_time);
+            BallRelease();
+            // other success logic
+          } else {
+            sendTimeoutSignal();
+          }
+          digitalWrite(ultrasonic_relay_pin, LOW);
         }
-        digitalWrite(ultrasonic_relay_pin, LOW);
-      }
-      Serial.print("Command processed: ");
-      Serial.println(cmd);
-    }
-  }
-}
+        Serial.print("Command processed: ");
+        Serial.println(cmd);
+      } // Close feederID if
+    } // Close receivedMsg length if
+  } // Close XBee.available if
+} // Close loop function
 
-void sendCompletionSignal() {
-  long completionSignal = 2000 + myFeederID; // Prefix 2000 + Feeder ID
+void sendCompletionSignal(unsigned long completionTime) {
+  completionTime = completionTime/1000;
+  char buffer[20]; // Buffer size assumes that the resulting string is not too long
+  // Format the completion signal with feeder ID and padded completion time
+  sprintf(buffer, "%d%03lu", 2000 + myFeederID, completionTime);
+
+  String completionSignal = String(buffer);
   Serial.println(completionSignal);
   XBee.println(completionSignal); // Send completion signal via XBee
-  Serial.println("Completion signal sent for this feeder.");
-  delay(1000); // Short delay to avoid rapid signal sending
+  Serial.println("asdasd");
+  Serial.println("Completion signal with padded time sent for this feeder.");
 }
 
-int extractLastFourExcludingLast(int number) {
-    number = abs(number / 10); // Remove the last digit and handle negative numbers
-    return number % 1000;    // Get the next four digits
+
+
+void sendTimeoutSignal() {
+  String timeoutSignal = String(3000 + myFeederID);
+  XBee.println(timeoutSignal);
+  Serial.println("Timeout signal sent: " + timeoutSignal);
 }
 
 // Function BallRelease: Lowers linear actuator to release the ball and then raises it back up to original position ready to be loaded again.

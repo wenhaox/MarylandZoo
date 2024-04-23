@@ -49,7 +49,6 @@ def configure_advanced_settings():
             st.session_state.audio_file = audio_file
             st.success("Settings saved!")
 
-
 # Function to attempt to establish a serial connection if not already established, or if it failed previously
 def init_serial_connection():
     if 'ser' not in st.session_state or not isinstance(st.session_state.ser, serial.Serial) or not st.session_state.ser.is_open:
@@ -74,8 +73,8 @@ def initialize_session_states():
 # Function to send activation command to the feeder
 def send_activation_command(feeder_id, is_ball_node):
     command_code = 101 if is_ball_node else 100 # 101 is the custom ID for ball node
-    
-    activation_command = str(command_code) + str(feeder_id)
+    padded_timeout = str(st.session_state.timeout_seconds).zfill(3)
+    activation_command = str(command_code) + str(padded_timeout) + str(feeder_id)
     if st.session_state.ser:
         try:
             st.session_state.ser.write(activation_command.encode())
@@ -84,27 +83,22 @@ def send_activation_command(feeder_id, is_ball_node):
             st.sidebar.error(f"Failed to send activation command to feeder {feeder_id}: {e}")
 
 # Function to wait for feedback from the feeder
-def wait_for_feedback(feeder_id, is_ball_node):
-    feedback_code = 2000
-    expected_feedback = str(feedback_code + feeder_id)
-    feedback_received = False
-    start_time = time.time()
-    timeout_seconds = int(st.session_state.timeout_seconds)  # use float() for decimal values
-    
-    while not feedback_received and (time.time() - start_time) < timeout_seconds:
+def wait_for_feedback(feeder_id):
+    expected_prefix_success = f"200{feeder_id}"
+    expected_prefix_timeout = f"300{feeder_id}"
+    activation_time = None
+
+    while True:
         if st.session_state.ser.in_waiting > 0:
             incoming_data = st.session_state.ser.readline().decode().strip()
-            print(f"Received: {incoming_data}, Expected: {expected_feedback}")
-            if incoming_data == expected_feedback:
-                st.sidebar.success(f"Feedback received from feeder {feeder_id}")
-                feedback_received = True
-            else:
-                # st.error(f"Unexpected feedback received: {incoming_data}")
-                pass
-        time.sleep(0.1)  # sleep to avoid busy waiting
-    
-    if not feedback_received:
-        st.sidebar.error(f"Timeout waiting for feedback from feeder {feeder_id}")
+            if incoming_data.startswith(expected_prefix_success):
+                # Extract the time taken, which is the rest of the string after the prefix
+                activation_time = int(incoming_data[len(expected_prefix_success):])
+                st.sidebar.success(f"Feedback received from feeder {feeder_id}: {activation_time} seconds")
+                return activation_time  # Return the actual time for processing
+            elif incoming_data.startswith(expected_prefix_timeout):
+                st.sidebar.error(f"Timeout occurred for feeder {feeder_id}")
+                return None  # Return None to indicate a timeout
 
 def feed_time_and_node_configuration():
     feed_time = st.time_input("Select feed time:", st.session_state.feed_time)
@@ -120,38 +114,24 @@ def configure_node_data(num_nodes, iterations, node_order_choice):
     sequence = []
 
     if node_order_choice == 'Random':
-        # assuming no iterations
-        # node_data, ball_node_choice = process_random_order(node_data)
-        
-        # assuming with iterations
-        ball_node_choice = st.selectbox("Select the node that will have the ball:", list(range(1, num_nodes + 1)), key="random_ball_node")
-        # create sequence, shuffle data
         sequence = create_node_sequence(initial_node_data, iterations, num_nodes)
-        shuffle_node_data(sequence)
-        # make sure ball node is the last node
-        if ball_node_choice in sequence:
-            sequence.remove(ball_node_choice)
-        sequence.append(ball_node_choice)
-            
+        random.shuffle(sequence)
+        # Automatically set the last node as the ball node
+        ball_node_choice = sequence[-1]
     else:
-        custom_order = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, initial_node_data)))
-        # assuming no iterations
-        node_data, ball_node_choice = process_custom_order(custom_order, num_nodes)
-        ball_node_choice = st.selectbox("Select the node that will have the ball:", list(range(1, num_nodes + 1)), key="custom_ball_node")
-        
-        # parse user input and validate
-        node_data = [int(i.strip()) for i in custom_order.split(',')]
-        if (len(set(node_data)) == num_nodes) and all(1 <= n <= num_nodes for n in node_data):
-            if ball_node_choice:
-                node_data.remove(ball_node_choice)
-                node_data.append(ball_node_choice)
-        else:
-            st.error("Please enter a valid, unique node order.")
-            node_data = list(range(1, num_nodes + 1))
-            ball_node_choice = None
-        
-        sequence = create_node_sequence(node_data, iterations, num_nodes)
-    # return node_data, locals().get('ball_node_choice')
+        custom_order_input = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, initial_node_data)), key="custom_order_input")
+        try:
+            node_data = [int(i.strip()) for i in custom_order_input.split(',') if i.strip().isdigit()]
+            if len(set(node_data)) == num_nodes and all(1 <= n <= num_nodes for n in node_data):
+                # Use the parsed data as the sequence
+                sequence = node_data
+                # Automatically set the last node as the ball node
+                ball_node_choice = sequence[-1]
+            else:
+                st.error("Please enter a valid, unique node order.")
+        except ValueError:
+            st.error("Please enter numbers only in the node order.")
+
     return sequence, ball_node_choice
 
 # Function to shuffle node data
@@ -204,45 +184,50 @@ def process_custom_order(custom_order, num_nodes):
 
 # Function to submit and schedule feeding based on the selected feed time
 def submit_and_schedule_feeding(node_data, ball_node_choice):
-    # display current feed information
+    # Display current feed information
     display_info(node_data, ball_node_choice)
     
-    # button to save the scheduled feed time
+    # Button to save the scheduled feed time
     if st.button('Schedule Feed Time'):
-        # save feed time, update feed status
+        # Save feed time, update feed status
         st.session_state.feed_status = "Scheduled"
         st.sidebar.success("Feed time scheduled.")
     
-    # keep listening to check if it's time to feed based on the saved feed time
+    # Continuously check if it's time to feed based on the saved feed time
     if 'feed_status' in st.session_state and st.session_state.feed_status == "Scheduled":
         current_time = datetime.datetime.now().time()
         scheduled_time = st.session_state.feed_time
         
-        # if curr time is greater than scheduled time and feed isn't completed
+        # If current time is greater than scheduled time and feed isn't completed
         if current_time >= scheduled_time and st.session_state.feed_status != "Completed":
             st.session_state.feed_status = "In Progress"
             init_serial_connection()
             
-            # check if serial connection is properly initialized
+            # Check if serial connection is properly initialized
             if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
-                try:
-                    # iterate through each node to send the custom activation command and wait for feedback
-                    for feeder_id in node_data:
-                        is_ball_node = (feeder_id == ball_node_choice)
-                        send_activation_command(feeder_id, is_ball_node)
-                        wait_for_feedback(feeder_id, is_ball_node)
+                activation_times = {}
+                # Iterate through each node to send the custom activation command and wait for feedback
+                for feeder_id in node_data:
+                    is_ball_node = (feeder_id == ball_node_choice)
+                    send_activation_command(feeder_id, is_ball_node)
+                    time_taken = wait_for_feedback(feeder_id)
+                    if time_taken is not None:
+                        activation_times[feeder_id] = time_taken
+                
+                if activation_times:
                     st.sidebar.success("All feeders activated and feedback received.")
-                    st.session_state.feed_status = "Completed"
-                except Exception as e:
-                    st.sidebar.error(f"Failed to activate feeders: {e}")
-                    st.session_state.feed_status = "Failed"
+                    display_node_activation_stats(activation_times)
+                else:
+                    st.sidebar.warning("No successful activations recorded.")
+                
+                st.session_state.feed_status = "Completed"
             else:
                 st.sidebar.error("Serial connection not initialized. Cannot send data.")
                 st.session_state.feed_status = "Failed"
         elif st.session_state.feed_status != "Completed":
-            # if it's not yet time, display a waiting message and plan to check again
+            # If it's not yet time, display a waiting message and plan to check again
             st.sidebar.info("Waiting for the scheduled feed time: " + scheduled_time.strftime('%H:%M'))
-            time.sleep(1)  # sleep because we don't need to check continuously
+            time.sleep(1)  # Sleep to avoid continuous loop strain
             st.rerun()
 
 # Function to display feed time and node/ball order information
@@ -257,30 +242,32 @@ def display_info(node_data, ball_node_choice):
     st.caption("You can change this timeout number in the advanced settings.")
 
 # Function to display node activation stats (table and chart)
-def display_node_activation_stats(node_data):
+def display_node_activation_stats(activation_times):
     st.markdown("---")
     st.subheader("📈 Node Activation Stats")
-    activation_times = np.random.randint(1, 15, size=len(node_data))
-    df = pd.DataFrame({
-        'Node': ['Node ' + str(node) for node in node_data],
-        'Activation Time (s)': activation_times
-    })
 
-    # Activation time table
-    styled_df = df.style.format(precision=2) \
-        .highlight_max(subset=['Activation Time (s)'], color='lightgreen') \
-        .set_properties(**{'text-align': 'center'})
-    st.dataframe(styled_df, height=300)
+    if activation_times:  # Check if the activation_times dictionary is not empty
+        # Prepare data for display
+        data_items = [{"Node": f"Node {node_id}", "Activation Time (s)": time} for node_id, time in activation_times.items()]
+        df = pd.DataFrame(data_items)
 
-    # Activation time bar chart
-    fig = px.bar(df, x='Node', y='Activation Time (s)', text='Activation Time (s)',
-                 color='Activation Time (s)', labels={'Activation Time (s)': 'Activation Time (seconds)'},
-                 category_orders={"Node": [f"Node {n}" for n in node_data]})  # Use the user-defined order for categories
+        # Activation time table
+        styled_df = df.style.format(precision=2) \
+            .highlight_max(subset=['Activation Time (s)'], color='lightgreen') \
+            .set_properties(**{'text-align': 'center'})
+        st.dataframe(styled_df, height=300)
 
-    fig.update_layout(xaxis={'categoryorder': 'array', 'categoryarray': [f"Node {n}" for n in node_data]}, 
-                      yaxis=dict(title='Seconds'), title='Node Activation Times')
-    fig.update_traces(texttemplate='%{text}s', textposition='outside')
-    st.plotly_chart(fig, use_container_width=True)
+        # Activation time bar chart
+        fig = px.bar(df, x='Node', y='Activation Time (s)', text='Activation Time (s)',
+                     color='Activation Time (s)', labels={'Activation Time (s)': 'Activation Time (seconds)'},
+                     category_orders={"Node": [f"Node {n}" for n in activation_times.keys()]})
+
+        fig.update_layout(xaxis={'categoryorder': 'array', 'categoryarray': [f"Node {n}" for n in activation_times.keys()]},
+                          yaxis=dict(title='Seconds'), title='Node Activation Times')
+        fig.update_traces(texttemplate='%{text}s', textposition='outside')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.write("No activation data to display.")  # Display a message if there are no data
 
 # Call functions to run app
 initialize_session_states()
@@ -289,4 +276,4 @@ configure_advanced_settings()
 num_nodes, iterations, node_order_choice = feed_time_and_node_configuration()
 node_data, ball_node_choice = configure_node_data(num_nodes, iterations, node_order_choice)
 submit_and_schedule_feeding(node_data, ball_node_choice)
-display_node_activation_stats(node_data)
+#display_node_activation_stats(node_data)
