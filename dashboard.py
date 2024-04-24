@@ -100,6 +100,7 @@ def wait_for_feedback(feeder_id):
                 return activation_time  # Return the actual time for processing
             elif incoming_data.startswith(expected_prefix_timeout):
                 st.sidebar.error(f"Timeout occurred for feeder {feeder_id}")
+                st.session_state.feed_status = "Failed"
                 return None  # Return None to indicate a timeout
 
 def feed_time_and_node_configuration():
@@ -220,7 +221,7 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
 
             if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
                 activation_times = {}
-                for feeder_id in node_data:
+                for feeder_id in node_data and st.session_state.feed_status == "Scheduled":
                     is_ball_node = (feeder_id == ball_node_choice)
                     send_activation_command(feeder_id, is_ball_node)
                     time_taken = wait_for_feedback(feeder_id)
