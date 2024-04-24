@@ -13,17 +13,19 @@ void loop() {
     String command = Serial.readStringUntil('\n');
     XBee.println(String(command));
 
-    // Assuming the command format is [command_code][timeout][feeder_id] as discussed
-    if (command.length() >= 7) { // Make sure the command is at least 7 characters
+    // Assuming the command format is [command_code][timeout][audio file][feeder_id] as discussed
+    if (command.length() >= 8) { // Make sure the command is at least 7 characters
       // Extract parts of the command
       String command_code_str = command.substring(0, 3);
       String timeout_str = command.substring(3, 6);
-      String feeder_id_str = command.substring(6);
+      String audio_file_str = command.substring(6,7);
+      String feeder_id_str = command.substring(7);
 
       // Convert to integer
       long command_code = command_code_str.toInt();
       int timeout = timeout_str.toInt(); // Timeout is assumed to be in seconds + xbee com time
       int feeder_id = feeder_id_str.toInt();
+      int audio_file = audio_file_str.toInt();
       // Calculates the expected response codes
       long desiredResponse = 2000 + feeder_id; // Expected feedback response code
       long timeoutResponse = 3000 + feeder_id; // Expected timeout response code
@@ -42,6 +44,7 @@ void loop() {
             break; // Exit the loop once acknowledgment is received
           } else if (feedback == timeoutResponse) {
             // Handle timeout response here
+            ackReceived = true;
             Serial.println(String(feedbackStr));
             break;
           }

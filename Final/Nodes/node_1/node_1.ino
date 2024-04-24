@@ -15,8 +15,8 @@ unsigned char data[4] = {};
 float distance;
 
 int mp3volume = 20;   // volume of audio played from speaker. Must be between 0-30 (Default is 20)
-int audio_loop = 3;  // Number of times audio sound is played while node is active (default is 10 times)
-int sound = 1;        // Determines which audio file is played from SD card -- corresponds to order of library on sd card (default is first file; currently gopher scream)
+int audio_loop = 1;  // Number of times audio sound is played while node is active (default is 10 times)
+int audio_file = 1;        // Determines which audio file is played from SD card -- corresponds to order of library on sd card (default is first file; currently gopher scream)
 int audio_timer;
 int false_pos_counter;
 long completion_time;
@@ -71,28 +71,32 @@ void loop() {
   success = false;
 
   digitalWrite(ultrasonic_relay_pin, HIGH);
+  delay(50);
+  digitalWrite(ultrasonic_relay_pin, LOW);
   start_time = millis();
-  PlayAudio(sound);
+  PlayAudio(audio_file);
 
   if (XBee.available()) {
     String receivedMsg = XBee.readStringUntil('\n');
     Serial.println(receivedMsg);
 
-    // Assuming command format is [command_code][timeout][feeder_id]
-    if (receivedMsg.length() >= 7) {
+    // Assuming command format is [command_code][timeout][feeder_id][audio_file]
+    if (receivedMsg.length() >= 8) {
       long cmd = receivedMsg.substring(0, 3).toInt();
       long receivedTimeout = receivedMsg.substring(3, 6).toInt() * 1000; // convert to milliseconds
-      int feederID = receivedMsg.substring(6, 7).toInt();
+      int feederID = receivedMsg.substring(7).toInt();
+      audio_file = receivedMsg.substring(6, 7).toInt();
       Serial.println(receivedMsg);
       audio_timer = (receivedTimeout / 1000) / audio_loop;
 
       if (feederID == myFeederID) {
-        if (cmd == 100 || cmd == 101) { // Feed
+        if (cmd == 101) { // Feed
           Serial.println("Autonomous command received for this feeder.");
+          digitalWrite(ultrasonic_relay_pin, HIGH);
           // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
           while ((millis() - start_time < receivedTimeout)) {
             if ((((millis() - start_time) / 1000) % audio_timer) == 0) {
-              PlayAudio(2);
+              PlayAudio(audio_file);
             }
             distance = Detect();
             if (distance < success_distance) {
@@ -110,6 +114,7 @@ void loop() {
           }
           // Determines if bobcat was successful; above while loop breaks if bobcat is detected or node times out.
           // If statement verifies that the node did not timeout (which means bobcat was successful)
+          myDFPlayer.pause();
           Serial.print("Pos Counter: ");
           Serial.print(false_pos_counter);
           Serial.print(" Distance: ");
@@ -120,6 +125,47 @@ void loop() {
           if (success) {
             sendCompletionSignal(completion_time);
             BallRelease();
+            // other success logic
+          } else {
+            sendTimeoutSignal();
+          }
+          digitalWrite(ultrasonic_relay_pin, LOW);
+        }
+        if (cmd == 100) { // NoFeed
+          Serial.println("Autonomous command received for this feeder.");
+          digitalWrite(ultrasonic_relay_pin, HIGH);
+          // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
+          while ((millis() - start_time < receivedTimeout)) {
+            if ((((millis() - start_time) / 1000) % audio_timer) == 0) {
+              PlayAudio(audio_file);
+            }
+            distance = Detect();
+            if (distance < success_distance) {
+              false_pos_counter++; // Increment false positives by 1
+              if (false_pos_counter >= 15) { // If the object has been consistently detected
+                success = true; // Set success to true
+                completion_time = millis() - start_time; // Capture the time of success
+                break; // Break out of the loop
+              }
+            } else {
+              false_pos_counter = 0;
+            }
+            Serial.print("Distance: ");
+            Serial.println(distance / 10);
+          }
+          // Determines if bobcat was successful; above while loop breaks if bobcat is detected or node times out.
+          // If statement verifies that the node did not timeout (which means bobcat was successful)
+          myDFPlayer.pause();
+          Serial.print("Pos Counter: ");
+          Serial.print(false_pos_counter);
+          Serial.print(" Distance: ");
+          Serial.println(distance / 10);
+          delay(1000);
+
+          // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
+          if (success) {
+            sendCompletionSignal(completion_time);
+            
             // other success logic
           } else {
             sendTimeoutSignal();
@@ -170,8 +216,8 @@ void BallRelease() {
 
 
 // Function PlayAudio: Plays specified audio file at given volume defined
-void PlayAudio(int sound) {
-  myDFPlayer.play(sound);
+void PlayAudio(int audio_file) {
+  myDFPlayer.play(audio_file);
 }
 
 
