@@ -62,14 +62,16 @@ def init_serial_connection():
 # Function to initialize required session states (feed time, status, timeout time, audio files) 
 def initialize_session_states():
     if 'feed_time' not in st.session_state:
-        st.session_state.feed_time = datetime.datetime.now().time()
+        st.session_state.feed_time = datetime.datetime.now()
+    if 'feed_date' not in st.session_state:
+        st.session_state.feed_date = datetime.date.today()
     if 'feed_status' not in st.session_state:
         st.session_state.feed_status = "Not scheduled"
     if 'timeout_seconds' not in st.session_state:
         st.session_state.timeout_seconds = "20" # default timeout is 20 seconds
     if 'audio_file' not in st.session_state:
         st.session_state.audio_file = "audio1.mp3"
-
+    
 # Function to send activation command to the feeder
 def send_activation_command(feeder_id, is_ball_node):
     command_code = 101 if is_ball_node else 100 # 101 is the custom ID for ball node
@@ -101,8 +103,20 @@ def wait_for_feedback(feeder_id):
                 return None  # Return None to indicate a timeout
 
 def feed_time_and_node_configuration():
-    feed_time = st.time_input("Select feed time:", st.session_state.feed_time)
-    st.session_state.feed_time = feed_time
+    # Allow users to select both date and time with session state values as defaults
+    if 'feed_date' not in st.session_state:
+        st.session_state.feed_date = datetime.date.today()
+    if 'feed_time' not in st.session_state:
+        st.session_state.feed_time = datetime.datetime.now().time()
+
+    feed_date = st.date_input("Select feed date:", value='today')
+    feed_time = st.time_input("Select feed time:", value='now')
+
+    
+    # Update the session state with the new date and time
+    st.session_state.feed_date = feed_date
+    st.session_state.feed_time = datetime.datetime.combine(feed_date, feed_time)
+
     num_nodes = st.slider("Select the number of nodes:", min_value=2, max_value=4, value=2)
     node_order_choice = st.radio("Choose the node order method:", ('Random', 'Custom'))
     
@@ -112,7 +126,6 @@ def feed_time_and_node_configuration():
         iterations = None  # Not applicable for custom order
     
     return num_nodes, iterations, node_order_choice
-
 
 # Function to configure data based on the selected node order method (Random or Custom)
 def configure_node_data(num_nodes, iterations, node_order_choice):
@@ -188,38 +201,32 @@ def process_custom_order(custom_order, num_nodes):
         st.error("Please enter numbers only in the node order.")
         return list(range(1, num_nodes + 1)), None
 
-# Function to submit and schedule feeding based on the selected feed time
 def submit_and_schedule_feeding(node_data, ball_node_choice):
-    # Display current feed information
     display_info(node_data, ball_node_choice)
     
-    # Button to save the scheduled feed time
     if st.button('Schedule Feed Time'):
-        # Save feed time, update feed status
+        # Save feed time and update feed status
         st.session_state.feed_status = "Scheduled"
         st.sidebar.success("Feed time scheduled.")
-    
+
     # Continuously check if it's time to feed based on the saved feed time
     if 'feed_status' in st.session_state and st.session_state.feed_status == "Scheduled":
-        current_time = datetime.datetime.now().time()
-        scheduled_time = st.session_state.feed_time
+        current_datetime = datetime.datetime.now()
+        scheduled_datetime = st.session_state.feed_time
         
-        # If current time is greater than scheduled time and feed isn't completed
-        if current_time >= scheduled_time and st.session_state.feed_status != "Completed":
+        if current_datetime >= scheduled_datetime and st.session_state.feed_status != "Completed":
             st.session_state.feed_status = "In Progress"
             init_serial_connection()
-            
-            # Check if serial connection is properly initialized
+
             if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
                 activation_times = {}
-                # Iterate through each node to send the custom activation command and wait for feedback
                 for feeder_id in node_data:
                     is_ball_node = (feeder_id == ball_node_choice)
                     send_activation_command(feeder_id, is_ball_node)
                     time_taken = wait_for_feedback(feeder_id)
                     if time_taken is not None:
                         activation_times[feeder_id] = time_taken
-                
+
                 if activation_times:
                     st.sidebar.success("All feeders activated and feedback received.")
                     display_node_activation_stats(activation_times)
@@ -231,10 +238,10 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
                 st.sidebar.error("Serial connection not initialized. Cannot send data.")
                 st.session_state.feed_status = "Failed"
         elif st.session_state.feed_status != "Completed":
-            # If it's not yet time, display a waiting message and plan to check again
-            st.sidebar.info("Waiting for the scheduled feed time: " + scheduled_time.strftime('%H:%M'))
-            time.sleep(1)  # Sleep to avoid continuous loop strain
-            st.rerun()
+            st.sidebar.info("Waiting for the scheduled feed time: " + scheduled_datetime.strftime('%H:%M'))
+            time.sleep(5)  # This sleep is critical to prevent continuous loop execution which can hang the app
+            st.experimental_rerun()
+
 
 # Function to display feed time and node/ball order information
 def display_info(node_data, ball_node_choice):
