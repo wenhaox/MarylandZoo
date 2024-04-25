@@ -100,17 +100,18 @@ def wait_for_feedback(feeder_id):
                 st.sidebar.error(f"Timeout occurred for feeder {feeder_id}")
                 return False  # Return False to indicate a timeout
 
+# Function to configure feed time / node order
 def feed_time_and_node_configuration():
     feed_date = st.date_input("Select feed date:", value='today')
     feed_time = st.time_input("Select feed time:", value='now')
     st.session_state.feed_date = feed_date
     st.session_state.feed_time = datetime.datetime.combine(feed_date, feed_time)
-    num_nodes = st.slider("Select the number of nodes:", min_value=2, max_value=4, value=2)
+    num_nodes = st.slider("Select the number of nodes to be used:", min_value=1, max_value=4, value=2)
     node_order_choice = st.radio("Choose the node order method:", ('Random', 'Custom'))
     
     if node_order_choice == 'Random':
         iterations = st.number_input("Select the number of iterations:", min_value=1, value=15, step=1)
-    else:
+    elif node_order_choice == 'Custom':
         iterations = None  # Not applicable for custom order
     
     return num_nodes, iterations, node_order_choice
@@ -121,24 +122,35 @@ def configure_node_data(num_nodes, iterations, node_order_choice):
     initial_node_data = list(range(1, num_nodes + 1))
     sequence = []
 
+    # Random Order
     if node_order_choice == 'Random':
         sequence = create_node_sequence(initial_node_data, iterations, num_nodes)
         random.shuffle(sequence)
         # Automatically set the last node as the ball node
         ball_node_choice = sequence[-1]
-    else:
-        custom_order_input = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, initial_node_data)), key="custom_order_input")
-        try:
-            node_data = [int(i.strip()) for i in custom_order_input.split(',') if i.strip().isdigit()]
-            if len(set(node_data)) == num_nodes and all(1 <= n <= num_nodes for n in node_data):
-                # Use the parsed data as the sequence
-                sequence = node_data
-                # Automatically set the last node as the ball node
-                ball_node_choice = sequence[-1]
+    
+    # Custom Order
+    elif node_order_choice == 'Custom':
+        if num_nodes > 1:
+          custom_order_input = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, initial_node_data)), key="custom_order_input")
+          try:
+              node_data = [int(i.strip()) for i in custom_order_input.split(',') if i.strip().isdigit()]
+              if len(set(node_data)) == num_nodes and all(1 <= n <= num_nodes for n in node_data):
+                  # Use the parsed data as the sequence
+                  sequence = node_data
+                  ball_node_choice = sequence[-1]
+              else:
+                  st.error("Please enter a valid, unique node order.")
+          except ValueError:
+              st.error("Please enter numbers only in the node order.")
+
+        else: # num_nodes = 1
+            ball_drop = st.toggle("Should this node drop the ball?", value='true', key="ball_node_toggle")
+            if (ball_drop):
+                ball_node_choice = 1
             else:
-                st.error("Please enter a valid, unique node order.")
-        except ValueError:
-            st.error("Please enter numbers only in the node order.")
+                ball_node_choice = None
+            sequence = [1]
 
     return sequence, ball_node_choice
 
@@ -161,34 +173,6 @@ def create_node_sequence(node_data, iterations, num_nodes):
         sequence.extend([node] * count)
 
     return sequence
-
-# Function for random order input
-def process_random_order(node_data):
-    node_data = shuffle_node_data(node_data)
-    # give user the option to either select the ball node or have it randomly chosen
-    ball_node_choice = st.selectbox("Select the node that will have the ball:", list(range(1, len(node_data) + 1)), key="custom_ball_node")
-    if ball_node_choice:
-        node_data.remove(ball_node_choice)
-        node_data.append(ball_node_choice) # ensures the ball node appears at the end
-    return node_data, ball_node_choice
-
-# Function for custom order input
-def process_custom_order(custom_order, num_nodes):
-    try:
-        # parse user input and validate
-        node_data = [int(i.strip()) for i in custom_order.split(',')]
-        if (len(set(node_data)) == num_nodes) and all(1 <= n <= num_nodes for n in node_data):
-            ball_node_choice = st.selectbox("Select the node that will have the ball:", list(range(1, num_nodes + 1)))
-            if ball_node_choice:
-                node_data.remove(ball_node_choice)
-                node_data.append(ball_node_choice)
-            return node_data, ball_node_choice
-        else:
-            st.error("Please enter a valid, unique node order.")
-            return list(range(1, num_nodes + 1)), None
-    except ValueError:
-        st.error("Please enter numbers only in the node order.")
-        return list(range(1, num_nodes + 1)), None
 
 # Function to submit and schedule feeding based on the selected feed time
 def submit_and_schedule_feeding(node_data, ball_node_choice):
