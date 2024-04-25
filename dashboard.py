@@ -29,31 +29,52 @@ def setup_ui():
 
 # Function to display advanced settings page
 def configure_advanced_settings():
-    with st.expander("⚙️ Advanced Settings"):
+    with st.expander("**⚙️ Advanced Settings**"):
         st.caption("In advanced settings, you can adjust the timeout for feedback and other parameters.")
         
+        # Change the base station USB port
+        serial_port = st.text_input(r"$\textsf{\normalsize Change the base station USB port:}$", st.session_state.serial_port)
+        st.text("")
+
         # Adjust timeout seconds
-        timeout_seconds = st.text_input("Set custom timeout for feedback (in seconds):", st.session_state.timeout_seconds, key="timeout")
+        timeout_seconds = st.text_input(r"$\textsf{\normalsize Set custom timeout for feedback (in seconds):}$", st.session_state.timeout_seconds, key="timeout")
+        st.text("")
         
         # Choose custom audio file
-        audio_file = st.selectbox("Select custom audio file:", ["audio1.mp3", "audio2.mp3", "audio3.mp3"], key="audio")
-        st.write(f"Selected audio file: {audio_file}")
+        audio_file = st.selectbox(r"$\textsf{\normalsize Select custom audio file:}$", ["1", "2", "3"], key="audio")
+        st.text("")
+
+        # volume
+        volume = st.slider(r"$\textsf{\normalsize Set volume:}$", value=20, min_value=1, max_value=30, step=1)
+        st.text("")
 
         # Choose number of times to play audio file
-        play_count = st.slider("Select number of times to play audio:", 1, 5, 1)
-        st.write(f"Audio will play {play_count} times.")
+        play_count = st.slider(r"$\textsf{\normalsize Select number of times to play audio:}$", value=2, min_value=1, max_value=5, step=1)
+        st.text("")
+
+        # distance detection
+        detection_dist = st.slider(r"$\textsf{\normalsize Set the detection distance (in cm):}$", value=30, min_value=3, max_value=99, step=1)
+        st.text("")
+
+        # st.write(f"Selected audio file: {audio_file}")
+        # st.write(f"Audio will play {play_count} times.")
+        # st.write(f"Volume is set to: {volume}")
 
         # Save settings
-        if st.button('Save Settings'):
+        if st.button('Save Settings', type='primary'):
+            st.session_state.serial_port = serial_port
             st.session_state.timeout_seconds = int(timeout_seconds)  # use float(timeout_seconds) if decimals are needed
             st.session_state.audio_file = audio_file
+            st.session_state.volume = str(volume)
+            st.session_state.play_count = str(play_count)
+            st.session_state.detect_dist = str(detection_dist)
             st.success("Settings saved!")
 
 # Function to attempt to establish a serial connection if not already established, or if it failed previously
 def init_serial_connection():
     if 'ser' not in st.session_state or not isinstance(st.session_state.ser, serial.Serial) or not st.session_state.ser.is_open:
         try:
-            st.session_state.ser = serial.Serial('/dev/tty.usbserial-210', 9600)
+            st.session_state.ser = serial.Serial('/dev/tty.usbserial-210', 9600) # tty.usbserial-210 is the port name
             st.info("Serial connection established.")
         except serial.SerialException as e:
             st.error(f"Failed to open serial port: {e}")
@@ -67,10 +88,18 @@ def initialize_session_states():
         st.session_state.feed_time = datetime.datetime.now().time()
     if 'feed_status' not in st.session_state:
         st.session_state.feed_status = "Not scheduled"
+    if 'serial_port' not in st.session_state:
+        st.session_state.serial_port = "/dev/tty.usbserial-210" # default serial port is /dev/tty.usbserial-210
     if 'timeout_seconds' not in st.session_state:
         st.session_state.timeout_seconds = "20" # default timeout is 20 seconds
     if 'audio_file' not in st.session_state:
-        st.session_state.audio_file = "audio1.mp3"
+        st.session_state.audio_file = "1"       # default audio file is 1st file
+    if 'volume' not in st.session_state:
+        st.session_state.volume = "20"          # default volume is 20
+    if 'play_count' not in st.session_state:
+        st.session_state.play_count = "2"       # default number of audio replays is 2
+    if 'detect_dist' not in st.session_state:
+        st.session_state.detect_dist = "30"     # default detection distance is 30 cm
 
 # Function to send activation command to the feeder
 def send_activation_command(feeder_id, is_ball_node):
@@ -102,17 +131,28 @@ def wait_for_feedback(feeder_id):
 
 # Function to configure feed time / node order
 def feed_time_and_node_configuration():
-    feed_date = st.date_input("Select feed date:", value='today')
-    feed_time = st.time_input("Select feed time:", value='now')
-    st.session_state.feed_date = feed_date
-    st.session_state.feed_time = datetime.datetime.combine(feed_date, feed_time)
-    num_nodes = st.slider("Select the number of nodes to be used:", min_value=1, max_value=4, value=2)
-    node_order_choice = st.radio("Choose the node order method:", ('Random', 'Custom'))
+    with st.container(border=True):
+      feed_date = st.date_input(r"$\textsf{\large Select feed date:}$", value='today', min_value=datetime.date.today())
+      feed_time = st.time_input(r"$\textsf{\large Select feed time:}$", value='now')
+      st.session_state.feed_date = feed_date
+      st.session_state.feed_time = datetime.datetime.combine(feed_date, feed_time)
     
-    if node_order_choice == 'Random':
-        iterations = st.number_input("Select the number of iterations:", min_value=1, value=15, step=1)
-    elif node_order_choice == 'Custom':
-        iterations = None  # Not applicable for custom order
+    st.text("")
+    num_nodes = st.slider(r"$\textsf{\large Select the number of nodes to be used:}$", min_value=1, max_value=4, value=2)
+    st.caption("If you want to test with 1 node only, choose \'1\' and then \'Custom\' below. If you have 4 nodes in the system, choose up to 4 to be used.")
+    st.text("")
+    
+    with st.container(border=True):
+      node_order_choice = st.radio(r"$\textsf{\large Choose the node order method:}$",
+                                  ('Random', 'Custom'),
+                                  captions = ["Randomly order the nodes according to the number of nodes being used.",
+                                              "Write in your own node order. The last node will automatically be the ball node."])
+      st.text("")
+      if node_order_choice == 'Random':
+          iterations = st.number_input(r"$\textsf{\normalsize Select the number of iterations:}$", min_value=1, value=15, step=1)
+          st.caption("This represents the number of times you want the bobcat to interact with the nodes before the ball is finally dropped.")
+      elif node_order_choice == 'Custom':
+          iterations = None  # Not applicable for custom order
     
     return num_nodes, iterations, node_order_choice
 
@@ -132,7 +172,7 @@ def configure_node_data(num_nodes, iterations, node_order_choice):
     # Custom Order
     elif node_order_choice == 'Custom':
         if num_nodes > 1:
-          custom_order_input = st.text_input("Enter the custom node order (comma-separated):", ','.join(map(str, initial_node_data)), key="custom_order_input")
+          custom_order_input = st.text_input(r"$\textsf{\large Enter the custom node order (comma-separated):}$", ','.join(map(str, initial_node_data)), key="custom_order_input")
           try:
               node_data = [int(i.strip()) for i in custom_order_input.split(',') if i.strip().isdigit()]
               if len(set(node_data)) == num_nodes and all(1 <= n <= num_nodes for n in node_data):
@@ -233,8 +273,10 @@ def display_info(node_data, ball_node_choice):
     st.write("Node order:", node_order)
     if ball_node_choice:
         st.write("Chosen ball node is:", ball_node_choice)
-    st.write("The timeout for each node (in seconds) is:", st.session_state.timeout_seconds, "seconds")
-    st.caption("You can change this timeout number in the advanced settings.")
+    # st.write("The timeout for each node (in seconds) is:", st.session_state.timeout_seconds, "seconds")
+    # st.write("The chosen audio file is:", st.session_state.audio_file)
+    # st.write("The volume is set to:", st.session_state.volume)
+    st.caption("You can change the timeout, audio file, and volume in the advanced settings.")
 
 # Function to display node activation stats (table and chart)
 def display_node_activation_stats(activation_times):
