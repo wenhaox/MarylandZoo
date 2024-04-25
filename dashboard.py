@@ -104,8 +104,8 @@ def initialize_session_states():
         st.session_state.activation_times = {}
 
 # Function to send activation command to the feeder
-def send_activation_command(feeder_id, is_ball_node):
-    command_code = 101 if is_ball_node else 100 # 101 is the custom ID for ball node
+def send_activation_command(feeder_id, is_ball_node, is_last_node):
+    command_code = 101 if (is_ball_node and is_last_node) else 100 # 101 is the custom ID for ball node
     padded_timeout = str(st.session_state.timeout_seconds).zfill(3)
     padded_volume = str(st.session_state.volume).zfill(2)
     padded_play_count = str(st.session_state.play_count).zfill(2)
@@ -249,9 +249,10 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
 
             if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
                 activation_times = {}
-                for feeder_id in node_data:
+                counter = 0
+                for feeder_id in node_data and counter < len(node_data):
                     is_ball_node = (feeder_id == ball_node_choice)
-                    send_activation_command(feeder_id, is_ball_node)
+                    send_activation_command(feeder_id, is_ball_node, counter == len(node_data) - 1)
                     time_taken = wait_for_feedback(feeder_id)
                     if time_taken is False:  # Check for timeout
                         st.sidebar.error(f"Stopping process. Timeout occurred at feeder {feeder_id}.")
@@ -260,6 +261,7 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
                         break  # Stop the feeding process
                     elif time_taken is not None:
                         activation_times[feeder_id] = time_taken
+                    counter += 1
 
                 if activation_times and st.session_state.feed_status != "Failed":
                     st.sidebar.success("All feeders activated and feedback received.")
