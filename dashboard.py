@@ -134,8 +134,7 @@ def wait_for_feedback(feeder_id):
                     st.session_state.activation_times[feeder_id] = []
                 st.session_state.activation_times[feeder_id].append(activation_time)
                 st.sidebar.success(f"Feedback received from feeder {feeder_id}: {activation_time} seconds")
-                with st.container():
-                    display_node_activation_stats()
+                    
                 return activation_time  # Continue collecting times
             elif incoming_data.startswith(expected_prefix_timeout):
                 st.sidebar.error(f"Timeout occurred for feeder {feeder_id}")
@@ -233,6 +232,7 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
 
     # Button to save the scheduled feed time
     if st.button('Schedule Feed Time'):
+        st.session_state.activation_times = {}
         # Save feed time, update feed status
         st.session_state.feed_status = "Scheduled"
         st.sidebar.success("Feed time scheduled.")
@@ -256,12 +256,14 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
                     if time_taken is False:  # Check for timeout
                         st.sidebar.error(f"Stopping process. Timeout occurred at feeder {feeder_id}.")
                         st.session_state.feed_status = "Failed"
+                        display_node_activation_stats()
                         break  # Stop the feeding process
                     elif time_taken is not None:
                         activation_times[feeder_id] = time_taken
 
                 if activation_times and st.session_state.feed_status != "Failed":
                     st.sidebar.success("All feeders activated and feedback received.")
+                    display_node_activation_stats()
                     st.session_state.feed_status = "Completed"
                 elif not activation_times:
                     st.sidebar.warning("No successful activations recorded.")
