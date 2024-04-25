@@ -100,12 +100,19 @@ def initialize_session_states():
         st.session_state.play_count = "2"       # default number of audio replays is 2
     if 'detect_dist' not in st.session_state:
         st.session_state.detect_dist = "30"     # default detection distance is 30 cm
+    if 'activation_times' not in st.session_state:
+        st.session_state.activation_times = {}
 
 # Function to send activation command to the feeder
 def send_activation_command(feeder_id, is_ball_node):
     command_code = 101 if is_ball_node else 100 # 101 is the custom ID for ball node
     padded_timeout = str(st.session_state.timeout_seconds).zfill(3)
-    activation_command = str(command_code) + str(padded_timeout) + str(feeder_id)
+    padded_volume = str(st.session_state.volume).zfill(2)
+    padded_play_count = str(st.session_state.play_count).zfill(2)
+    padded_detect_dist = str(st.session_state.detect_dist).zfill(2)
+    activation_command = str(command_code) + str(padded_timeout) +str(st.session_state.audio_file) + str(padded_volume) + str(padded_play_count) + str(padded_detect_dist) + str(feeder_id)
+    print(activation_command)
+
     if st.session_state.ser:
         try:
             st.session_state.ser.write(activation_command.encode())
@@ -117,17 +124,22 @@ def send_activation_command(feeder_id, is_ball_node):
 def wait_for_feedback(feeder_id):
     expected_prefix_success = f"200{feeder_id}"
     expected_prefix_timeout = f"300{feeder_id}"
-
+    
     while True:
         if st.session_state.ser.in_waiting > 0:
             incoming_data = st.session_state.ser.readline().decode().strip()
             if incoming_data.startswith(expected_prefix_success):
                 activation_time = int(incoming_data[len(expected_prefix_success):])
+                if feeder_id not in st.session_state.activation_times:
+                    st.session_state.activation_times[feeder_id] = []
+                st.session_state.activation_times[feeder_id].append(activation_time)
                 st.sidebar.success(f"Feedback received from feeder {feeder_id}: {activation_time} seconds")
-                return activation_time  # Return the actual time for processing
+                with st.container():
+                    display_node_activation_stats()
+                return activation_time  # Continue collecting times
             elif incoming_data.startswith(expected_prefix_timeout):
                 st.sidebar.error(f"Timeout occurred for feeder {feeder_id}")
-                return False  # Return False to indicate a timeout
+                return False
 
 # Function to configure feed time / node order
 def feed_time_and_node_configuration():
@@ -250,7 +262,6 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
 
                 if activation_times and st.session_state.feed_status != "Failed":
                     st.sidebar.success("All feeders activated and feedback received.")
-                    display_node_activation_stats(activation_times)
                     st.session_state.feed_status = "Completed"
                 elif not activation_times:
                     st.sidebar.warning("No successful activations recorded.")
@@ -279,32 +290,36 @@ def display_info(node_data, ball_node_choice):
     st.caption("You can change the timeout, audio file, and volume in the advanced settings.")
 
 # Function to display node activation stats (table and chart)
-def display_node_activation_stats(activation_times):
+def display_node_activation_stats():
     st.markdown("---")
     st.subheader("📈 Node Activation Stats")
-
-    if activation_times:  # Check if the activation_times dictionary is not empty
+    
+    if st.session_state.activation_times:  # Check if the dictionary is not empty
         # Prepare data for display
-        data_items = [{"Node": f"Node {node_id}", "Activation Time (s)": time} for node_id, time in activation_times.items()]
-        df = pd.DataFrame(data_items)
-
-        # Activation time table
+        data = []
+        for node_id, times in st.session_state.activation_times.items():
+            for time in times:
+                data.append({"Node": f"Node {node_id}", "Activation Time (s)": time})
+        df = pd.DataFrame(data)
+        
+        # Display activation time table
         styled_df = df.style.format(precision=2) \
             .highlight_max(subset=['Activation Time (s)'], color='lightgreen') \
             .set_properties(**{'text-align': 'center'})
         st.dataframe(styled_df, height=300)
-
-        # Activation time bar chart
+        
+        # Display activation time bar chart
         fig = px.bar(df, x='Node', y='Activation Time (s)', text='Activation Time (s)',
                      color='Activation Time (s)', labels={'Activation Time (s)': 'Activation Time (seconds)'},
-                     category_orders={"Node": [f"Node {n}" for n in activation_times.keys()]})
-
-        fig.update_layout(xaxis={'categoryorder': 'array', 'categoryarray': [f"Node {n}" for n in activation_times.keys()]},
+                     category_orders={"Node": [f"Node {n}" for n in sorted(st.session_state.activation_times.keys())]})
+        
+        fig.update_layout(xaxis={'categoryorder': 'array', 'categoryarray': [f"Node {n}" for n in sorted(st.session_state.activation_times.keys())]},
                           yaxis=dict(title='Seconds'), title='Node Activation Times')
         fig.update_traces(texttemplate='%{text}s', textposition='outside')
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.write("No activation data to display.")  # Display a message if there are no data
+
 
 # Call functions to run app
 initialize_session_states()

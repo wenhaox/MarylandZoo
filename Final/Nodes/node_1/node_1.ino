@@ -7,7 +7,6 @@ const int actuator_neg_pin = 5;
 const int ultrasonic_relay_pin = 8;
 
 // 
-int success_distance = 200;
 unsigned long start_time; 
 
 // Initializes variables used in detection function
@@ -70,29 +69,30 @@ void loop() {
   false_pos_counter = 0;
   success = false;
 
-  digitalWrite(ultrasonic_relay_pin, HIGH);
-  delay(50);
-  digitalWrite(ultrasonic_relay_pin, LOW);
-  start_time = millis();
-  PlayAudio(audio_file);
-
   if (XBee.available()) {
     String receivedMsg = XBee.readStringUntil('\n');
     Serial.println(receivedMsg);
 
     // Assuming command format is [command_code][timeout][feeder_id][audio_file]
-    if (receivedMsg.length() >= 8) {
+    if (receivedMsg.length() >= 14) {
       long cmd = receivedMsg.substring(0, 3).toInt();
       long receivedTimeout = receivedMsg.substring(3, 6).toInt() * 1000; // convert to milliseconds
-      int feederID = receivedMsg.substring(7).toInt();
-      audio_file = receivedMsg.substring(6, 7).toInt();
+      int feederID = receivedMsg.substring(13).toInt();
+      audio_file = receivedMsg.substring(6,7).toInt();
+      mp3volume = receivedMsg.substring(7,9).toInt();
+      audio_loop = receivedMsg.substring(9,11).toInt();
+      int success_distance = receivedMsg.substring(11,13).toInt()*10; //convert to mm
+
       Serial.println(receivedMsg);
       audio_timer = (receivedTimeout / 1000) / audio_loop;
-
+      myDFPlayer.volume(mp3volume);
       if (feederID == myFeederID) {
         if (cmd == 101) { // Feed
+          start_time = millis();
+          PlayAudio(audio_file);
           Serial.println("Autonomous command received for this feeder.");
           digitalWrite(ultrasonic_relay_pin, HIGH);
+          delay(2000);
           // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
           while ((millis() - start_time < receivedTimeout)) {
             if ((((millis() - start_time) / 1000) % audio_timer) == 0) {
@@ -119,6 +119,9 @@ void loop() {
           Serial.print(false_pos_counter);
           Serial.print(" Distance: ");
           Serial.println(distance / 10);
+
+          Serial.println(receivedMsg.substring(6,7));
+
           delay(1000);
 
           // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
@@ -131,9 +134,12 @@ void loop() {
           }
           digitalWrite(ultrasonic_relay_pin, LOW);
         }
-        if (cmd == 100) { // NoFeed
+        if (cmd == 100) { // Dont Feed
+          start_time = millis();
+          PlayAudio(audio_file);
           Serial.println("Autonomous command received for this feeder.");
           digitalWrite(ultrasonic_relay_pin, HIGH);
+          delay(2000);
           // Active node detection loop; Remains true while nothing is within detection radius and node has not reached timeout limit to be considered failure
           while ((millis() - start_time < receivedTimeout)) {
             if ((((millis() - start_time) / 1000) % audio_timer) == 0) {
@@ -160,6 +166,9 @@ void loop() {
           Serial.print(false_pos_counter);
           Serial.print(" Distance: ");
           Serial.println(distance / 10);
+
+          Serial.println(receivedMsg.substring(6,7));
+
           delay(1000);
 
           // NEED TO INCLUDE LOGIC FOR XBEE COMS AND HANDLING OF FINAL NODE VS NOT FINAL NODE
