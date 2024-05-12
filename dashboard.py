@@ -10,7 +10,7 @@ import plotly.express as px
 
 # Function to set up the UI elements (logo, header, and system status)
 def setup_ui():
-    st.sidebar.image("logo.png", width=270)
+    # st.sidebar.image("logo.png", width=270)
     st.header("🕒 Feed Time Scheduler")
     st.sidebar.subheader("📊 System Status")
 
@@ -74,7 +74,7 @@ def configure_advanced_settings():
 def init_serial_connection():
     if 'ser' not in st.session_state or not isinstance(st.session_state.ser, serial.Serial) or not st.session_state.ser.is_open:
         try:
-            st.session_state.ser = serial.Serial('/dev/tty.usbserial-210', 9600) # tty.usbserial-210 is the port name
+            st.session_state.ser = serial.Serial(st.session_state.serial_port, 9600) # tty.usbserial-210 is the port name
             st.info("Serial connection established.")
         except serial.SerialException as e:
             st.error(f"Failed to open serial port: {e}")
@@ -89,7 +89,7 @@ def initialize_session_states():
     if 'feed_status' not in st.session_state:
         st.session_state.feed_status = "Not scheduled"
     if 'serial_port' not in st.session_state:
-        st.session_state.serial_port = "/dev/tty.usbserial-210" # default serial port is /dev/tty.usbserial-210
+        st.session_state.serial_port = "COM3" # default serial port is COM3
     if 'timeout_seconds' not in st.session_state:
         st.session_state.timeout_seconds = "20" # default timeout is 20 seconds
     if 'audio_file' not in st.session_state:
@@ -250,18 +250,19 @@ def submit_and_schedule_feeding(node_data, ball_node_choice):
             if isinstance(st.session_state.ser, serial.Serial) and st.session_state.ser.is_open:
                 activation_times = {}
                 counter = 0
-                for feeder_id in node_data and counter < len(node_data):
-                    is_ball_node = (feeder_id == ball_node_choice)
-                    send_activation_command(feeder_id, is_ball_node, counter == len(node_data) - 1)
-                    time_taken = wait_for_feedback(feeder_id)
-                    if time_taken is False:  # Check for timeout
-                        st.sidebar.error(f"Stopping process. Timeout occurred at feeder {feeder_id}.")
-                        st.session_state.feed_status = "Failed"
-                        display_node_activation_stats()
-                        break  # Stop the feeding process
-                    elif time_taken is not None:
-                        activation_times[feeder_id] = time_taken
-                    counter += 1
+                for feeder_id in node_data:
+                    if counter < len(node_data):
+                      is_ball_node = (feeder_id == ball_node_choice)
+                      send_activation_command(feeder_id, is_ball_node, counter == len(node_data) - 1)
+                      time_taken = wait_for_feedback(feeder_id)
+                      if time_taken is False:  # Check for timeout
+                          st.sidebar.error(f"Stopping process. Timeout occurred at feeder {feeder_id}.")
+                          st.session_state.feed_status = "Failed"
+                          display_node_activation_stats()
+                          break  # Stop the feeding process
+                      elif time_taken is not None:
+                          activation_times[feeder_id] = time_taken
+                      counter += 1
 
                 if activation_times and st.session_state.feed_status != "Failed":
                     st.sidebar.success("All feeders activated and feedback received.")
